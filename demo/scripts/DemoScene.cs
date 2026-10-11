@@ -32,6 +32,7 @@ namespace Live2D.Cubism.Demo
         private bool _screenshotTaken;
         private int _isolateDrawable = -1;
         private CubismOffscreenRenderer _offscreen;
+        private bool _cycleBlends;
 
         public override void _Ready()
         {
@@ -247,11 +248,21 @@ namespace Live2D.Cubism.Demo
                 case "blend":
                     _modelNode.EnableFrameworkUpdate = true;
                     _modelNode.PlayMotionFromGroup("Idle", 0, CubismMotionPriority.PriorityIdle, true);
-                    // Hiyori moc is all Normal; cycle Cubism 5 dest-blends so the
-                    // extended shader path is visible. A Cubism 5 moc with real
-                    // ColorBlend ids still uses those values when Force stays -1
-                    // unless CUBISM_FORCE_BLEND is set.
                     ApplyForcedBlendFromEnv();
+                    // Only cycle dest-blends when the moc has no Cubism 5 types
+                    // (Hiyori is all Normal). Ren keeps HardLight / Color / Multiply.
+                    if (string.IsNullOrEmpty(OS.GetEnvironment("CUBISM_FORCE_BLEND")))
+                    {
+                        _cycleBlends = true;
+                        foreach (var d in _modelNode.Model.Drawables)
+                        {
+                            if (d.ColorBlend > 2)
+                            {
+                                _cycleBlends = false;
+                                break;
+                            }
+                        }
+                    }
                     break;
                 case "offscreen":
                     _modelNode.EnableFrameworkUpdate = true;
@@ -356,8 +367,7 @@ namespace Live2D.Cubism.Demo
                 _modelNode.SetMouthOpening((Mathf.Sin(_time * 8f) + 1f) * 0.5f);
             }
 
-            if (_demoMode == "blend" && _modelNode != null &&
-                string.IsNullOrEmpty(OS.GetEnvironment("CUBISM_FORCE_BLEND")))
+            if (_cycleBlends && _modelNode != null)
             {
                 // 2s per mode: ColorBurn, LinearBurn, Screen, Overlay
                 int[] cycle = { 7, 8, 10, 12 };
