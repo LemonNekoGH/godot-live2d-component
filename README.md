@@ -6,7 +6,7 @@ A faithful port of Live2D's [Cubism SDK for Unity (CubismUnityComponents)](https
 
 This project ports the open-source components of the Cubism 5 SDK for Unity R5 to Godot 4.4.1 (.NET build), targeting **.NET 10 (`net10.0`)**. The port mirrors the Unity implementation's logic, math, update order, and observable behavior as closely as possible.
 
-> **Note on Godot version:** Godot 4.7.2 is not yet released. This project uses Godot 4.4.1 (latest stable 4.x .NET build). The GodotSharp 4.4.1 NuGet package ships with `net8.0` assemblies, but the `LatestMajor` roll-forward policy in Godot's runtime config allows it to run on the .NET 10 runtime.
+> **Godot version:** This project uses **Godot 4.7.2** (.NET / Mono build, released 2026-08-18) with **.NET 10 SDK** (`net10.0` target). The GodotSharp 4.7.2 NuGet package ships with `net8.0` assemblies, but the `LatestMajor` roll-forward policy in Godot's runtime config allows it to run on the .NET 10 runtime.
 
 ## Architecture
 
@@ -65,7 +65,7 @@ Matches Unity's `PreLateUpdate` insertion exactly:
 
 ## Requirements
 
-- **Godot 4.4.1** (.NET / Mono build) — [download](https://godotengine.org/download)
+- **Godot 4.7.2** (.NET / Mono build) — [download](https://github.com/godotengine/godot/releases/tag/4.7.2-stable)
 - **.NET 10 SDK** — [download](https://dotnet.microsoft.com/download)
 - **Cubism Core native library** (proprietary, see below)
 
@@ -112,7 +112,7 @@ cp -r /path/to/Hiyori demo/models/
 
 ### 5. Run
 
-Open the project in Godot 4.4.1 (.NET) and run the demo scene, or:
+Open the project in Godot 4.7.2 (.NET) and run the demo scene, or:
 
 ```bash
 export LD_LIBRARY_PATH="$(pwd)/native:$LD_LIBRARY_PATH"

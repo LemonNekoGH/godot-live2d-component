@@ -137,6 +137,12 @@ namespace Live2D.Cubism.Rendering
                 renderer.Initialize(Model, i, texture);
                 _drawableRenderers[i] = renderer;
             }
+
+            // Set up clipping masks
+            var maskController = new CubismMaskController();
+            maskController.Name = "MaskController";
+            AddChild(maskController);
+            maskController.Initialize(Model, _drawableRenderers, _textures);
         }
 
         private void InitializeFramework()
@@ -327,36 +333,28 @@ namespace Live2D.Cubism.Rendering
             };
         }
 
+        private bool _firstFrameDone;
+
         public override void _Process(double delta)
         {
             if (!_initialized || Model == null) return;
 
             var dt = (float)delta;
 
-            // Framework update in execution order (mirrors Unity CubismUpdateController)
-            // 1. Motion (fade controller, order 100)
-            MotionController?.Update(dt);
-
-            // 2. Pose (order 200)
-            PoseController?.Update(dt);
-
-            // 3. Expression (order 300)
-            ExpressionController?.Update(dt);
-
-            // 4. Eye blink (order 400)
-            EyeBlinkController?.Update(dt);
-
-            // 5. Mouth (order 500)
-            MouthController?.Update(dt);
-
-            // 6. Harmonic motion (order 600)
-            HarmonicMotionController?.Update(dt);
-
-            // 7. Look-at (order 700)
-            LookController?.Update(dt);
-
-            // 8. Physics (order 800)
-            PhysicsRig?.Evaluate(dt);
+            // Skip framework controllers on first frame to show clean default pose
+            if (_firstFrameDone)
+            {
+                // Framework update in execution order (mirrors Unity CubismUpdateController)
+                MotionController?.Update(dt);
+                PoseController?.Update(dt);
+                ExpressionController?.Update(dt);
+                EyeBlinkController?.Update(dt);
+                MouthController?.Update(dt);
+                HarmonicMotionController?.Update(dt);
+                LookController?.Update(dt);
+                PhysicsRig?.Evaluate(dt);
+            }
+            _firstFrameDone = true;
 
             // 9. Core update (writes params/parts → Core → reads back drawables)
             Model.UpdateModel();

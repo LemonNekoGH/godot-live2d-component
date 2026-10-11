@@ -3,7 +3,7 @@
 [application]
 
 config/name="CubismGodot"
-config/features=PackedStringArray("4.4", "C#")
+config/features=PackedStringArray("4.7", "C#")
 run/main_scene="res://demo/scenes/demo.tscn"
 
 [display]
