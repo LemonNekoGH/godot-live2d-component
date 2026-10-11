@@ -22,6 +22,9 @@ demo/models/
 recordings/
 *.avi
 
+# Native motion dump build
+tools/native_motion_dump/build/
+
 # OS
 .DS_Store
 Thumbs.db
