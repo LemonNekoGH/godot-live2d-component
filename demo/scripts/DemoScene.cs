@@ -157,7 +157,9 @@ namespace Live2D.Cubism.Demo
             var smile = new Live2D.Cubism.Framework.Json.CubismExp3Json
             {
                 Type = "Live2D Expression",
-                FadeInTime = 0.4f,
+                // 2s fade so Movie Maker / 0.25s frame extracts show the
+                // CubismExpressionController weight ramp, not a single-step snap.
+                FadeInTime = 2.0f,
                 FadeOutTime = 0.4f,
                 Parameters = new[]
                 {
