@@ -171,6 +171,12 @@ namespace Live2D.Cubism.Framework.Json
                     var err = image.Load(texPath);
                     if (err == Error.Ok)
                     {
+                        // Native LAppTextureManager uploads RGBA and calls glGenerateMipmap.
+                        // Keep straight (non-premultiplied) alpha; the shader premultiplies
+                        // like CubismCG.cginc / FragShaderSrc.frag.
+                        if (image.DetectAlpha() == Image.AlphaMode.None)
+                            image.Convert(Image.Format.Rgba8);
+                        image.GenerateMipmaps();
                         textures[i] = ImageTexture.CreateFromImage(image);
                     }
                     else

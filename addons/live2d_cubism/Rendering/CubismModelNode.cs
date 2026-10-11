@@ -58,7 +58,9 @@ namespace Live2D.Cubism.Rendering
 
         private CubismDrawableRenderer[] _drawableRenderers;
         private Texture2D[] _textures;
+        private CubismMaskController _maskController;
         private bool _initialized;
+        public int IsolateDrawableIndex { get; set; } = -1;
 
         public override void _Ready()
         {
@@ -98,6 +100,8 @@ namespace Live2D.Cubism.Rendering
 
                 // Force initial Core update so drawables have geometry
                 Model.UpdateModel();
+                _maskController?.UpdateMasks();
+                UpdateRenderers();
 
                 GD.Print($"[CubismModelNode] Loaded model: {Model.Name} " +
                          $"({Model.Parameters.Length} params, {Model.Parts.Length} parts, " +
@@ -138,11 +142,10 @@ namespace Live2D.Cubism.Rendering
                 _drawableRenderers[i] = renderer;
             }
 
-            // Set up clipping masks
-            var maskController = new CubismMaskController();
-            maskController.Name = "MaskController";
-            AddChild(maskController);
-            maskController.Initialize(Model, _drawableRenderers, _textures);
+            _maskController = new CubismMaskController();
+            _maskController.Name = "MaskController";
+            AddChild(_maskController);
+            _maskController.Initialize(Model, _drawableRenderers, _textures);
         }
 
         private void InitializeFramework()
@@ -357,7 +360,8 @@ namespace Live2D.Cubism.Rendering
             // 9. Core update (writes params/parts → Core → reads back drawables)
             Model.UpdateModel();
 
-            // 10. Rendering (order 10000)
+            // 10. Masks then renderers (order 10000)
+            _maskController?.UpdateMasks();
             UpdateRenderers();
         }
 
@@ -367,6 +371,13 @@ namespace Live2D.Cubism.Rendering
 
             for (int i = 0; i < _drawableRenderers.Length; i++)
             {
+                if (IsolateDrawableIndex >= 0 && i != IsolateDrawableIndex)
+                {
+                    if (_drawableRenderers[i] != null)
+                        _drawableRenderers[i].Visible = false;
+                    continue;
+                }
+
                 _drawableRenderers[i]?.UpdateRender();
             }
         }

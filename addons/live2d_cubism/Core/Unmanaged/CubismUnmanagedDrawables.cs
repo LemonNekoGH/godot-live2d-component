@@ -117,7 +117,11 @@ namespace Live2D.Cubism.Core.Unmanaged
             var result = new Vector2[count];
             for (int i = 0; i < count; i++)
             {
-                result[i] = new Vector2(uvs[index][i * 2], uvs[index][i * 2 + 1]);
+                // Cubism Core UVs use Unity / D3D convention: V=0 is the bottom of the image.
+                // Native OpenGL flips V in VertShaderSrc.vert (`v_texCoord.y = 1.0 - v_texCoord.y`)
+                // because glTexImage2D places the first PNG row at V=0 (top). Godot 2D is the same
+                // as that OpenGL upload: (0,0) is the top-left of the image. Flip V to match Native.
+                result[i] = new Vector2(uvs[index][i * 2], 1f - uvs[index][i * 2 + 1]);
             }
             return result;
         }
@@ -134,9 +138,14 @@ namespace Live2D.Cubism.Core.Unmanaged
 
             var indices = CubismCoreDll.GetDrawableIndices(_modelPtr);
             var result = new int[indexCount];
-            for (int i = 0; i < indexCount; i++)
+            // Vertex Y is negated for Godot 2D, which reverses triangle winding.
+            // Swap the last two indices of each triangle so front faces stay front-facing
+            // (needed if a non-double-sided drawable enables back-face culling).
+            for (int i = 0; i + 2 < indexCount; i += 3)
             {
                 result[i] = indices[index][i];
+                result[i + 1] = indices[index][i + 2];
+                result[i + 2] = indices[index][i + 1];
             }
             return result;
         }

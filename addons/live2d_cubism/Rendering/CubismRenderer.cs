@@ -7,31 +7,30 @@
 
 using Godot;
 using Live2D.Cubism.Core;
-using Live2D.Cubism.Core.Unmanaged;
 
 namespace Live2D.Cubism.Rendering
 {
     /// <summary>
     /// Renders a single CubismDrawable as a Godot MeshInstance2D.
     ///
-    /// Ported from Unity CubismRenderer. Key mapping decisions:
+    /// Ported from Unity CubismRenderer + Native CubismShader_OpenGLES2:
     ///
-    /// 1. Premultiplied alpha: Unity's CubismCG.cginc does COLOR.rgb *= COLOR.a
-    ///    before applying masks and model opacity. Our shader mirrors this exactly
-    ///    with render_mode blend_premul_alpha.
+    /// 1. UVs: Core stores V=0 at the image bottom (Unity). Native's VertShaderSrc.vert
+    ///    flips V; we flip in CubismUnmanagedDrawables.GetVertexUvs so Godot (V=0 top) matches.
     ///
-    /// 2. Vertex colors: Unity bakes per-drawable opacity into vertex color alpha.
-    ///    We do the same: color.a = drawableOpacity * modelOpacity.
+    /// 2. Color: FragShaderSrc.frag multiply / screen blend, then premultiply
+    ///    (CubismCG.cginc COLOR.rgb *= COLOR.a) and apply model opacity.
     ///
-    /// 3. Coordinates: Cubism Core outputs Y-up model-space positions.
-    ///    We negate Y for Godot 2D (Y-down) and scale by PixelsPerUnit.
+    /// 3. Blend: Native uses GL_ONE, GL_ONE_MINUS_SRC_ALPHA (premultiplied).
+    ///    Godot render_mode blend_premul_alpha.
     ///
-    /// 4. UVs: Cubism Core UVs are (0,0)=top-left matching Godot. Pass through.
+    /// 4. Masks: high-precision path from Unity CubismRenderer.CalcMaskTransform —
+    ///    mask UV = (vertex - boundsCenter) / boundsScale + 0.5, sampled from a SubViewport.
     ///
-    /// 5. Draw order: Core's RenderOrder maps to Godot ZIndex directly.
+    /// 5. Draw order: Core RenderOrder → ZIndex.
     ///
-    /// 6. Culling: Drawables with IsVisible=false or Opacity≤0 are hidden.
-    ///    Non-double-sided drawables use render_mode cull_back in the shader.
+    /// 6. Culling: hidden when !IsVisible or Opacity≈0. Non-double-sided uses cull_back;
+    ///    winding was restored after the Y-negate in GetIndices.
     /// </summary>
     public partial class CubismDrawableRenderer : MeshInstance2D
     {
@@ -40,91 +39,126 @@ namespace Live2D.Cubism.Rendering
         private ArrayMesh _arrayMesh;
         private ShaderMaterial _material;
         private Texture2D _texture;
-        private bool _hasMask;
-        private bool _invertMask;
         private float _modelOpacity = 1f;
+        private bool _useMask;
+        private bool _invertMask;
+        private bool _isHitArea;
 
-        // Shaders are shared across all instances
         private static Shader _normalShader;
         private static Shader _additiveShader;
         private static Shader _multiplyShader;
-        private static Shader _maskShader;
+        private static Shader _maskNormalShader;
+        private static Shader _maskAdditiveShader;
+        private static Shader _maskMultiplyShader;
+        private static Shader _maskInvertNormalShader;
 
         public int DrawableIndex => _drawableIndex;
+        public bool IsMasked { get; private set; }
+        public bool InvertMask => _invertMask;
 
-        private static Shader CreateShader(string blendMode)
+        private static string ColorBody(bool masked, bool invertMask)
         {
-            var shader = new Shader();
-            shader.Code = $@"
+            var maskSample = "";
+            if (masked)
+            {
+                maskSample = invertMask
+                    ? @"
+    float cubism_mask_alpha = texture(cubism_mask_texture, cubism_mask_uv).a;
+    color *= 1.0 - cubism_mask_alpha;
+"
+                    : @"
+    float cubism_mask_alpha = texture(cubism_mask_texture, cubism_mask_uv).a;
+    color *= cubism_mask_alpha;
+";
+            }
+
+            var varyings = masked
+                ? @"
+varying vec2 cubism_mask_uv;
+uniform sampler2D cubism_mask_texture : filter_linear, hint_default_white;
+uniform vec2 cubism_mask_center = vec2(0.0);
+uniform float cubism_mask_inv_scale = 1.0;
+
+void vertex() {
+    cubism_mask_uv = (VERTEX - cubism_mask_center) * cubism_mask_inv_scale + vec2(0.5);
+}
+"
+                : "";
+
+            return $@"
 shader_type canvas_item;
-render_mode {blendMode};
+render_mode {{BLEND}}{{CULL}};
 
-uniform sampler2D cubism_texture : filter_linear_mipmap;
-
+uniform sampler2D cubism_texture : filter_linear_mipmap, repeat_enable;
+uniform float cubism_model_opacity : hint_range(0.0, 1.0) = 1.0;
+uniform vec4 cubism_multiply_color = vec4(1.0, 1.0, 1.0, 1.0);
+uniform vec4 cubism_screen_color = vec4(0.0, 0.0, 0.0, 1.0);
+{varyings}
 void fragment() {{
-    vec4 t = texture(cubism_texture, UV);
-    // If texture alpha > 0, show the texture. Otherwise show magenta for debug.
-    if (t.a > 0.01) {{
-        COLOR = t;
-    }} else {{
-        COLOR = vec4(0.0); // transparent
-    }}
+    vec4 tex_color = texture(cubism_texture, UV);
+    // Native FragShaderSrc.frag multiply + screen
+    tex_color.rgb = tex_color.rgb * cubism_multiply_color.rgb;
+    tex_color.rgb = tex_color.rgb + cubism_screen_color.rgb - (tex_color.rgb * cubism_screen_color.rgb);
+
+    vec4 color = tex_color * COLOR;
+    color *= cubism_model_opacity;
+{maskSample}
+    // CubismCG.cginc / FragShaderSrc.frag: premultiply before blend
+    COLOR = vec4(color.rgb * color.a, color.a);
 }}
 ";
+        }
+
+        private static Shader BuildShader(string blendMode, bool cullBack, bool masked, bool invertMask)
+        {
+            var shader = new Shader();
+            var cull = cullBack ? ", cull_back" : "";
+            shader.Code = ColorBody(masked, invertMask)
+                .Replace("{BLEND}", blendMode)
+                .Replace("{CULL}", cull);
             return shader;
         }
 
-        public static Shader GetNormalShader()
+        private static Shader GetShader(bool additive, bool multiplicative, bool cullBack, bool masked, bool invertMask)
         {
-            return _normalShader ??= CreateShader("blend_mix");
+            if (masked && invertMask)
+                return _maskInvertNormalShader ??= BuildShader("blend_premul_alpha", false, true, true);
+
+            if (masked)
+            {
+                if (additive)
+                    return _maskAdditiveShader ??= BuildShader("blend_add", false, true, false);
+                if (multiplicative)
+                    return _maskMultiplyShader ??= BuildShader("blend_mul", false, true, false);
+                return _maskNormalShader ??= BuildShader("blend_premul_alpha", false, true, false);
+            }
+
+            if (additive)
+                return _additiveShader ??= BuildShader("blend_add", cullBack, false, false);
+            if (multiplicative)
+                return _multiplyShader ??= BuildShader("blend_mul", cullBack, false, false);
+            return _normalShader ??= BuildShader("blend_premul_alpha", cullBack, false, false);
         }
 
-        public static Shader GetAdditiveShader()
+        public static Shader GetMaskWriteShader()
         {
-            return _additiveShader ??= CreateShader("blend_add");
-        }
-
-        public static Shader GetMultiplyShader()
-        {
-            return _multiplyShader ??= CreateShader("blend_mul");
-        }
-
-        public static Shader GetMaskShader()
-        {
-            if (_maskShader != null) return _maskShader;
-            _maskShader = new Shader();
-            _maskShader.Code = @"
+            if (_maskWriteShader != null) return _maskWriteShader;
+            _maskWriteShader = new Shader();
+            _maskWriteShader.Code = @"
 shader_type canvas_item;
-render_mode blend_mix;
+render_mode blend_mix, unshaded;
 
-uniform sampler2D cubism_texture : filter_linear_mipmap;
-uniform sampler2D cubism_mask_texture : hint_default_white;
-uniform float cubism_model_opacity : hint_range(0.0, 1.0) = 1.0;
-uniform vec4 cubism_multiply_color = vec4(1.0, 1.0, 1.0, 1.0);
-uniform vec4 cubism_screen_color = vec4(0.0, 0.0, 0.0, 0.0);
-uniform bool cubism_invert_mask = false;
+uniform sampler2D cubism_texture : filter_linear_mipmap, repeat_enable;
 
 void fragment() {
-    vec4 tex_color = texture(cubism_texture, UV);
-
-    vec4 result = tex_color * cubism_multiply_color;
-    result.rgb = result.rgb + cubism_screen_color.rgb - (result.rgb * cubism_screen_color.rgb);
-
-    // Sample mask texture
-    float mask_value = texture(cubism_mask_texture, UV).a;
-    if (cubism_invert_mask) {
-        mask_value = 1.0 - mask_value;
-    }
-
-    result.a *= COLOR.a * cubism_model_opacity * mask_value;
-
-    COLOR = result;
+    float a = texture(cubism_texture, UV).a * COLOR.a;
+    COLOR = vec4(1.0, 1.0, 1.0, a);
 }
 ";
-            return _maskShader;
+            return _maskWriteShader;
         }
 
-        public bool IsMasked { get; private set; }
+        private static Shader _maskWriteShader;
 
         public void Initialize(CubismModel model, int drawableIndex, Texture2D texture)
         {
@@ -133,45 +167,51 @@ void fragment() {
             _texture = texture;
 
             var drawable = model.Drawables[drawableIndex];
-
             IsMasked = drawable.MaskIndices != null && drawable.MaskIndices.Length > 0;
+            _invertMask = drawable.IsInvertedMask;
+            _isHitArea = drawable.Id != null && drawable.Id.StartsWith("HitArea");
 
-            // Select shader based on blend mode
-            Shader shader;
-            if (drawable.IsAdditive)
-                shader = GetAdditiveShader();
-            else if (drawable.IsMultiplicative)
-                shader = GetMultiplyShader();
-            else
-                shader = GetNormalShader();
+            TextureFilter = TextureFilterEnum.LinearWithMipmaps;
+            TextureRepeat = TextureRepeatEnum.Enabled;
+            Texture = _texture;
+
+            ApplyMaterial(masked: false);
+            RebuildMesh();
+        }
+
+        private void ApplyMaterial(bool masked)
+        {
+            var drawable = _model.Drawables[_drawableIndex];
+            var cullBack = !drawable.IsDoubleSided;
+            var shader = GetShader(drawable.IsAdditive, drawable.IsMultiplicative, cullBack, masked, _invertMask);
 
             _material = new ShaderMaterial();
             _material.Shader = shader;
             if (_texture != null)
                 _material.SetShaderParameter("cubism_texture", _texture);
-
+            _material.SetShaderParameter("cubism_model_opacity", _modelOpacity);
             Material = _material;
-
-            // Double-sided drawables should not cull back faces
-            // (handled by separate shader variant or disabling cull in Godot)
-
-            // Initial mesh build
-            RebuildMesh();
+            _useMask = masked;
         }
 
-        public void SetMaskTexture(Texture2D maskTexture, bool invertMask)
+        public void SetMaskTexture(Texture2D maskTexture, Vector2 maskCenter, float maskScale, bool invertMask)
         {
-            _hasMask = maskTexture != null;
             _invertMask = invertMask;
-
-            if (_hasMask)
+            if (maskTexture == null || maskScale <= 0f)
             {
-                _material.Shader = GetMaskShader();
-                _material.SetShaderParameter("cubism_mask_texture", maskTexture);
-                _material.SetShaderParameter("cubism_invert_mask", invertMask);
-                if (_texture != null)
-                    _material.SetShaderParameter("cubism_texture", _texture);
+                if (_useMask)
+                    ApplyMaterial(masked: false);
+                return;
             }
+
+            if (!_useMask)
+                ApplyMaterial(masked: true);
+
+            _material.SetShaderParameter("cubism_mask_texture", maskTexture);
+            _material.SetShaderParameter("cubism_mask_center", maskCenter);
+            _material.SetShaderParameter("cubism_mask_inv_scale", 1f / maskScale);
+            if (_texture != null)
+                _material.SetShaderParameter("cubism_texture", _texture);
         }
 
         public void SetModelOpacity(float opacity)
@@ -189,60 +229,41 @@ void fragment() {
 
             var drawable = _model.Drawables[_drawableIndex];
 
-            // Culling (matches Unity: MeshRenderer.enabled = IsVisible)
-            // Temporarily hide masked drawables until clipping mask pipeline is implemented
-            bool shouldShow = drawable.IsVisible && drawable.Opacity > 0.001f && !IsMasked;
+            bool shouldShow = !_isHitArea && drawable.IsVisible && drawable.Opacity > 0.001f;
             Visible = shouldShow;
             if (!shouldShow) return;
 
-            // Draw order (matches Unity: SortingOrder = RenderOrder)
             ZIndex = drawable.RenderOrder;
 
-            // Shader uniforms (only when _material is active)
             if (_material != null)
             {
                 _material.SetShaderParameter("cubism_multiply_color",
-                    new Godot.Color(drawable.MultiplyColor.R, drawable.MultiplyColor.G,
+                    new Color(drawable.MultiplyColor.R, drawable.MultiplyColor.G,
                         drawable.MultiplyColor.B, drawable.MultiplyColor.A));
                 _material.SetShaderParameter("cubism_screen_color",
-                    new Godot.Color(drawable.ScreenColor.R, drawable.ScreenColor.G,
+                    new Color(drawable.ScreenColor.R, drawable.ScreenColor.G,
                         drawable.ScreenColor.B, drawable.ScreenColor.A));
                 _material.SetShaderParameter("cubism_model_opacity", _modelOpacity);
             }
 
-            // Rebuild mesh with updated positions
             RebuildMesh();
+        }
+
+        /// <summary>
+        /// Rebuilds the mesh used when this drawable is a clipping-mask source.
+        /// Same geometry as the main mesh; the caller assigns the mask-write shader.
+        /// </summary>
+        public void FillMaskArrays(out PackedVector2Array positions, out PackedVector2Array uvs, out PackedInt32Array indices, out PackedColorArray colors)
+        {
+            BuildPackedArrays(out positions, out uvs, out indices, out colors);
         }
 
         private void RebuildMesh()
         {
-            var positions = _model.GetDrawableVertexPositions(_drawableIndex);
-            var uvs = _model.GetDrawableVertexUvs(_drawableIndex);
-            var indices = _model.GetDrawableIndices(_drawableIndex);
-
-            if (positions == null || positions.Length == 0 ||
-                indices == null || indices.Length < 3)
+            if (!BuildPackedArrays(out var packedPos, out var packedUv, out var packedIdx, out var packedCol))
             {
                 Visible = false;
                 return;
-            }
-
-            var drawable = _model.Drawables[_drawableIndex];
-            var ppu = _model.PixelsPerUnit;
-            var scale = ppu > 0 ? ppu : 1f;
-
-            var scaledPositions = new Vector2[positions.Length];
-            for (int i = 0; i < positions.Length; i++)
-            {
-                scaledPositions[i] = positions[i] * scale;
-            }
-
-            // Vertex colors: bake drawable opacity into alpha (matches Unity)
-            var colors = new Color[positions.Length];
-            var opacity = drawable.Opacity;
-            for (int i = 0; i < colors.Length; i++)
-            {
-                colors[i] = new Color(1f, 1f, 1f, opacity);
             }
 
             if (_arrayMesh == null)
@@ -252,13 +273,56 @@ void fragment() {
 
             var arrays = new Godot.Collections.Array();
             arrays.Resize((int)Mesh.ArrayType.Max);
-            arrays[(int)Mesh.ArrayType.Vertex] = scaledPositions;
-            arrays[(int)Mesh.ArrayType.TexUV] = uvs;
-            arrays[(int)Mesh.ArrayType.Color] = colors;
-            arrays[(int)Mesh.ArrayType.Index] = indices;
+            arrays[(int)Mesh.ArrayType.Vertex] = packedPos;
+            arrays[(int)Mesh.ArrayType.TexUV] = packedUv;
+            arrays[(int)Mesh.ArrayType.Color] = packedCol;
+            arrays[(int)Mesh.ArrayType.Index] = packedIdx;
 
             _arrayMesh.AddSurfaceFromArrays(Mesh.PrimitiveType.Triangles, arrays);
             Mesh = _arrayMesh;
+        }
+
+        private bool BuildPackedArrays(
+            out PackedVector2Array packedPos,
+            out PackedVector2Array packedUv,
+            out PackedInt32Array packedIdx,
+            out PackedColorArray packedCol)
+        {
+            packedPos = new PackedVector2Array();
+            packedUv = new PackedVector2Array();
+            packedIdx = new PackedInt32Array();
+            packedCol = new PackedColorArray();
+
+            var positions = _model.GetDrawableVertexPositions(_drawableIndex);
+            var uvs = _model.GetDrawableVertexUvs(_drawableIndex);
+            var indices = _model.GetDrawableIndices(_drawableIndex);
+
+            if (positions == null || positions.Length == 0 ||
+                indices == null || indices.Length < 3)
+            {
+                return false;
+            }
+
+            var drawable = _model.Drawables[_drawableIndex];
+            var ppu = _model.PixelsPerUnit;
+            var scale = ppu > 0 ? ppu : 1f;
+            var opacity = drawable.Opacity;
+
+            packedPos.Resize(positions.Length);
+            packedUv.Resize(positions.Length);
+            packedCol.Resize(positions.Length);
+            for (int i = 0; i < positions.Length; i++)
+            {
+                packedPos[i] = positions[i] * scale;
+                packedUv[i] = i < uvs.Length ? uvs[i] : Vector2.Zero;
+                packedCol[i] = new Color(1f, 1f, 1f, opacity);
+            }
+
+            packedIdx.Resize(indices.Length);
+            for (int i = 0; i < indices.Length; i++)
+                packedIdx[i] = indices[i];
+
+            return true;
         }
     }
 }

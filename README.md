@@ -35,9 +35,9 @@ addons/live2d_cubism/
 | Aspect | Unity | Godot 2D | Mapping |
 |--------|-------|----------|---------|
 | Y axis | Up    | Down     | Vertex Y negated in `CubismUnmanagedDrawables.GetVertexPositions` |
-| Units  | Model space (PixelsPerUnit) | Pixels | Scaled by `100 / PixelsPerUnit` |
+| Units  | Model space (PixelsPerUnit) | Pixels | Scaled by Core `PixelsPerUnit` |
 | Draw order | SortingOrder | ZIndex | Direct mapping of Core render orders |
-| UV origin | (0,0) = bottom-left | (0,0) = top-left | Passed through (Core UVs are already top-left) |
+| UV origin | (0,0) = bottom-left | (0,0) = top-left | V flipped (`1 - v`), matching Native `VertShaderSrc.vert` |
 
 ## Update Order
 
@@ -61,7 +61,7 @@ Matches Unity's `PreLateUpdate` insertion exactly:
 | Normal      | Default shader   |
 | Additive    | `CanvasItemMaterial.BlendMode.Add` |
 | Multiplicative | `CanvasItemMaterial.BlendMode.Mul` |
-| Masking     | Custom shader with mask texture |
+| Masking     | High-precision SubViewport mask (Unity CalcMaskTransform) |
 
 ## Requirements
 

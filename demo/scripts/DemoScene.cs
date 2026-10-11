@@ -1,6 +1,13 @@
 /**
  * Demo scene for testing the Cubism SDK for Godot port.
  * Loads a Live2D model and exercises all framework features.
+ *
+ * Environment:
+ *   CUBISM_SCREENSHOT=/path/to.png   save a PNG after a few frames, then optionally quit
+ *   CUBISM_QUIT_AFTER=3              quit after N seconds (0 = stay open)
+ *   CUBISM_DEMO_MODE=static|motion|expression|blink|physics|pose|lipsync|lookat|all
+ *   CUBISM_DRAWABLE_ONLY=N           isolate a single drawable index
+ *   CUBISM_BG=green|gray|white
  */
 
 using Godot;
@@ -16,27 +23,46 @@ namespace Live2D.Cubism.Demo
 
         private CubismModelNode _modelNode;
         private Label _infoLabel;
+        private ColorRect _background;
         private float _time;
         private bool _testsRun;
+        private string _demoMode = "static";
+        private string _screenshotPath;
+        private float _quitAfter = -1f;
+        private bool _screenshotTaken;
+        private int _isolateDrawable = -1;
 
         public override void _Ready()
         {
-            // Run math verification tests first
             GD.Print("=== Running Golden-Value Math Tests ===");
             CubismMathTests.RunAll();
             GD.Print("=== Math Tests Complete ===\n");
             _testsRun = true;
 
-            // Set up UI
+            _demoMode = OS.GetEnvironment("CUBISM_DEMO_MODE");
+            if (string.IsNullOrEmpty(_demoMode))
+                _demoMode = "static";
+            _screenshotPath = OS.GetEnvironment("CUBISM_SCREENSHOT");
+            var quitStr = OS.GetEnvironment("CUBISM_QUIT_AFTER");
+            if (!string.IsNullOrEmpty(quitStr) && float.TryParse(quitStr, out var q))
+                _quitAfter = q;
+            var isolateStr = OS.GetEnvironment("CUBISM_DRAWABLE_ONLY");
+            if (!string.IsNullOrEmpty(isolateStr) && int.TryParse(isolateStr, out var iso))
+                _isolateDrawable = iso;
+
+            _background = GetNodeOrNull<ColorRect>("Background");
+            ApplyBackground(OS.GetEnvironment("CUBISM_BG"));
+
             var canvas = new CanvasLayer();
             AddChild(canvas);
 
             _infoLabel = new Label();
             _infoLabel.Position = new Vector2(10, 10);
-            _infoLabel.AddThemeColorOverride("font_color", Colors.White);
+            _infoLabel.AddThemeColorOverride("font_color", new Color(0.15f, 0.15f, 0.18f));
+            var hud = OS.GetEnvironment("CUBISM_HUD");
+            _infoLabel.Visible = hud != "0" && string.IsNullOrEmpty(_screenshotPath);
             canvas.AddChild(_infoLabel);
 
-            // Try to load model
             string foundPath = null;
 
             if (!string.IsNullOrEmpty(ModelPath) && System.IO.File.Exists(ModelPath))
@@ -82,6 +108,18 @@ namespace Live2D.Cubism.Demo
             }
         }
 
+        private void ApplyBackground(string name)
+        {
+            if (_background == null) return;
+            _background.Color = name switch
+            {
+                "green" => new Color(0f, 0.8f, 0f, 1f),
+                "white" => new Color(1f, 1f, 1f, 1f),
+                "gray" => new Color(0.92f, 0.92f, 0.94f, 1f),
+                _ => new Color(0.93f, 0.94f, 0.96f, 1f)
+            };
+        }
+
         private void LoadLive2DModel(string path)
         {
             _modelNode = new CubismModelNode();
@@ -91,26 +129,14 @@ namespace Live2D.Cubism.Demo
             {
                 GD.Print($"Model loaded successfully: {path}");
 
-                // Scale model to fit viewport
-                // From diagnostic: global bounds are (-566,-1785)-(638,1993) pixels
-                // Total height = ~3778 pixels, total width = ~1203 pixels
-                // The model Y=0 is at roughly waist level
                 var viewSize = GetViewportRect().Size;
-
-                // Scale so the full model height fits in the viewport
-                float modelHeight = 3778f; // from diagnostic
-                var fitScale = (viewSize.Y * 0.95f) / modelHeight;
+                float modelHeight = 3778f;
+                var fitScale = (viewSize.Y * 0.92f) / modelHeight;
                 _modelNode.Scale = new Vector2(fitScale, fitScale);
-
-                // Center: model center (0,0) maps to about waist level
-                // Y center of bounds is at about (+104 pixels unscaled) = slightly below center
-                // After Y-negate: the model extends from Y=-1993 (feet, bottom of screen)
-                // to Y=+1785 (head, top of screen)
-                // So Y=0 in model space = waist, need to offset to center on screen
                 _modelNode.Position = new Vector2(viewSize.X / 2f, viewSize.Y * 0.47f);
+                _modelNode.IsolateDrawableIndex = _isolateDrawable;
 
-                // Start idle motion if available
-                _modelNode.PlayMotionFromGroup("Idle", 0, CubismMotionPriority.PriorityIdle, true);
+                ApplyDemoMode();
             }
             else
             {
@@ -118,19 +144,101 @@ namespace Live2D.Cubism.Demo
             }
         }
 
+        private void ApplyDemoMode()
+        {
+            if (_modelNode == null) return;
+
+            switch (_demoMode)
+            {
+                case "static":
+                    _modelNode.EnableFrameworkUpdate = false;
+                    break;
+                case "motion":
+                    _modelNode.EnableFrameworkUpdate = true;
+                    _modelNode.PlayMotionFromGroup("Idle", 0, CubismMotionPriority.PriorityIdle, true);
+                    break;
+                case "expression":
+                    _modelNode.EnableFrameworkUpdate = true;
+                    _modelNode.StartExpression(0);
+                    break;
+                case "blink":
+                    _modelNode.EnableFrameworkUpdate = true;
+                    break;
+                case "physics":
+                    _modelNode.EnableFrameworkUpdate = true;
+                    _modelNode.PlayMotionFromGroup("Idle", 0, CubismMotionPriority.PriorityIdle, true);
+                    break;
+                case "pose":
+                    _modelNode.EnableFrameworkUpdate = true;
+                    _modelNode.PlayMotionFromGroup("TapBody", 0, CubismMotionPriority.PriorityNormal);
+                    break;
+                case "lipsync":
+                    _modelNode.EnableFrameworkUpdate = true;
+                    break;
+                case "lookat":
+                    _modelNode.EnableFrameworkUpdate = true;
+                    break;
+                case "all":
+                    _modelNode.EnableFrameworkUpdate = true;
+                    _modelNode.PlayMotionFromGroup("Idle", 0, CubismMotionPriority.PriorityIdle, true);
+                    break;
+                default:
+                    _modelNode.EnableFrameworkUpdate = false;
+                    break;
+            }
+        }
+
         public override void _Process(double delta)
         {
             _time += (float)delta;
 
+            if (_demoMode == "lookat" && _modelNode != null)
+            {
+                var t = _time;
+                _modelNode.SetLookTarget(new Vector2(Mathf.Sin(t) * 0.7f, Mathf.Cos(t * 0.7f) * 0.4f));
+            }
+
+            if (_demoMode == "lipsync" && _modelNode != null)
+            {
+                _modelNode.SetMouthOpening((Mathf.Sin(_time * 8f) + 1f) * 0.5f);
+            }
+
             if (_modelNode?.Model != null)
             {
                 _infoLabel.Text = $"Model: {_modelNode.Model.Name}\n" +
+                                  $"Mode: {_demoMode}\n" +
                                   $"Parameters: {_modelNode.Model.Parameters.Length}\n" +
                                   $"Parts: {_modelNode.Model.Parts.Length}\n" +
                                   $"Drawables: {_modelNode.Model.Drawables.Length}\n" +
                                   $"FPS: {Engine.GetFramesPerSecond()}\n" +
                                   $"Time: {_time:F1}s";
             }
+
+            if (!_screenshotTaken && !string.IsNullOrEmpty(_screenshotPath) && _time >= 0.6f)
+            {
+                _screenshotTaken = true;
+                CaptureScreenshot(_screenshotPath);
+            }
+
+            if (_quitAfter >= 0f && _time >= _quitAfter)
+            {
+                GetTree().Quit();
+            }
+        }
+
+        private void CaptureScreenshot(string path)
+        {
+            var img = GetViewport().GetTexture().GetImage();
+            if (img == null)
+            {
+                GD.PrintErr($"Screenshot failed: no viewport image");
+                return;
+            }
+            var dir = System.IO.Path.GetDirectoryName(path);
+            if (!string.IsNullOrEmpty(dir))
+                System.IO.Directory.CreateDirectory(dir);
+            var err = img.SavePng(path);
+            GD.Print($"Screenshot saved: {path} ({err})");
         }
 
         public override void _Input(InputEvent @event)
@@ -150,6 +258,13 @@ namespace Live2D.Cubism.Demo
                         break;
                     case Key.Space:
                         _modelNode?.PlayMotionFromGroup("TapBody", 0, CubismMotionPriority.PriorityNormal);
+                        break;
+                    case Key.F:
+                        if (_modelNode != null)
+                            _modelNode.EnableFrameworkUpdate = !_modelNode.EnableFrameworkUpdate;
+                        break;
+                    case Key.S:
+                        CaptureScreenshot("/opt/cursor/artifacts/manual-screenshot.png");
                         break;
                 }
             }
