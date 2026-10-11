@@ -124,20 +124,24 @@ namespace Live2D.Cubism.Demo
 
             if (_modelNode?.Model != null)
             {
-                // Mouse-based look-at
-                var mousePos = GetViewport().GetMousePosition();
-                var modelPos = _modelNode.GlobalPosition;
-                var lookDir = (mousePos - modelPos) / 200f;
-                _modelNode.SetLookTarget(new Vector2(
-                    Mathf.Clamp(lookDir.X, -1f, 1f),
-                    Mathf.Clamp(lookDir.Y, -1f, 1f)));
+                // Animate angle parameters to demonstrate parameter control
+                var angleX = _modelNode.Model.FindParameter("ParamAngleX");
+                var angleY = _modelNode.Model.FindParameter("ParamAngleY");
+                var angleZ = _modelNode.Model.FindParameter("ParamAngleZ");
+                var bodyAngleX = _modelNode.Model.FindParameter("ParamBodyAngleX");
+
+                if (angleX != null) angleX.Value = Mathf.Sin(_time * 1.5f) * 20f;
+                if (angleY != null) angleY.Value = Mathf.Sin(_time * 1.2f) * 15f;
+                if (angleZ != null) angleZ.Value = Mathf.Sin(_time * 0.8f) * 10f;
+                if (bodyAngleX != null) bodyAngleX.Value = Mathf.Sin(_time * 0.6f) * 5f;
 
                 _infoLabel.Text = $"Model: {_modelNode.Model.Name}\n" +
                                   $"Parameters: {_modelNode.Model.Parameters.Length}\n" +
                                   $"Parts: {_modelNode.Model.Parts.Length}\n" +
                                   $"Drawables: {_modelNode.Model.Drawables.Length}\n" +
                                   $"FPS: {Engine.GetFramesPerSecond()}\n" +
-                                  $"Time: {_time:F1}s";
+                                  $"Time: {_time:F1}s\n" +
+                                  $"AngleX: {angleX?.Value:F1}";
             }
         }
 

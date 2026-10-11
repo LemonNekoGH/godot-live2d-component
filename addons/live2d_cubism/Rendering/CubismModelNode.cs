@@ -341,20 +341,15 @@ namespace Live2D.Cubism.Rendering
 
             var dt = (float)delta;
 
-            // Skip framework controllers on first frame to show clean default pose
-            if (_firstFrameDone)
-            {
-                // Framework update in execution order (mirrors Unity CubismUpdateController)
-                MotionController?.Update(dt);
-                PoseController?.Update(dt);
-                ExpressionController?.Update(dt);
-                EyeBlinkController?.Update(dt);
-                MouthController?.Update(dt);
-                HarmonicMotionController?.Update(dt);
-                LookController?.Update(dt);
-                PhysicsRig?.Evaluate(dt);
-            }
-            _firstFrameDone = true;
+            // Framework update in execution order (mirrors Unity CubismUpdateController)
+            MotionController?.Update(dt);
+            PoseController?.Update(dt);
+            ExpressionController?.Update(dt);
+            EyeBlinkController?.Update(dt);
+            MouthController?.Update(dt);
+            HarmonicMotionController?.Update(dt);
+            LookController?.Update(dt);
+            PhysicsRig?.Evaluate(dt);
 
             // 9. Core update (writes params/parts → Core → reads back drawables)
             Model.UpdateModel();
