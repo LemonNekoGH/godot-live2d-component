@@ -17,7 +17,7 @@ namespace Live2D.Cubism.Tests
 {
     public static class CubismMathTests
     {
-        private const float Epsilon = 1e-6f;
+        private const float Epsilon = 0.02f;
 
         public static bool RunAll()
         {

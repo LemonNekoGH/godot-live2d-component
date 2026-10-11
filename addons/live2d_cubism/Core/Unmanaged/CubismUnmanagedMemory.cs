@@ -14,26 +14,23 @@ namespace Live2D.Cubism.Core.Unmanaged
     {
         public static IntPtr Allocate(int size, int alignment)
         {
-            var rawPtr = Marshal.AllocHGlobal(size + alignment);
-            var aligned = new IntPtr(((long)rawPtr + alignment - 1) & ~((long)alignment - 1));
+            int extra = alignment + IntPtr.Size;
+            var rawPtr = Marshal.AllocHGlobal(size + extra);
+            long raw = (long)rawPtr;
+            long aligned = (raw + extra) & ~((long)alignment - 1);
+            var alignedPtr = new IntPtr(aligned);
 
-            unsafe
-            {
-                ((IntPtr*)aligned)[-1] = rawPtr;
-            }
+            Marshal.WriteIntPtr(alignedPtr - IntPtr.Size, rawPtr);
 
-            return aligned;
+            return alignedPtr;
         }
 
         public static void Deallocate(IntPtr alignedPtr)
         {
             if (alignedPtr == IntPtr.Zero) return;
 
-            unsafe
-            {
-                var rawPtr = ((IntPtr*)alignedPtr)[-1];
-                Marshal.FreeHGlobal(rawPtr);
-            }
+            var rawPtr = Marshal.ReadIntPtr(alignedPtr - IntPtr.Size);
+            Marshal.FreeHGlobal(rawPtr);
         }
     }
 }

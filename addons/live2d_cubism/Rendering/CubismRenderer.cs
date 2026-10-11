@@ -158,9 +158,13 @@ void fragment() {
             var uvs = _model.GetDrawableVertexUvs(_drawableIndex);
             var indices = _model.GetDrawableIndices(_drawableIndex);
 
-            if (positions == null || positions.Length == 0) return;
+            if (positions == null || positions.Length == 0 ||
+                indices == null || indices.Length < 3)
+            {
+                Visible = false;
+                return;
+            }
 
-            // Scale from model space to pixel space
             var ppu = _model.PixelsPerUnit;
             var scale = ppu > 0 ? (100f / ppu) : 1f;
 
@@ -170,7 +174,6 @@ void fragment() {
                 scaledPositions[i] = positions[i] * scale;
             }
 
-            // Build colors array (all white, opacity handled in shader)
             var colors = new Color[positions.Length];
             for (int i = 0; i < colors.Length; i++)
                 colors[i] = Colors.White;

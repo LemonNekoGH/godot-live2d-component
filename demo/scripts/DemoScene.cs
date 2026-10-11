@@ -37,13 +37,14 @@ namespace Live2D.Cubism.Demo
             canvas.AddChild(_infoLabel);
 
             // Try to load model
+            string foundPath = null;
+
             if (!string.IsNullOrEmpty(ModelPath) && System.IO.File.Exists(ModelPath))
             {
-                LoadLive2DModel(ModelPath);
+                foundPath = ModelPath;
             }
             else
             {
-                // Try default paths
                 var defaultPaths = new[]
                 {
                     "demo/models/Hiyori/Hiyori.model3.json",
@@ -53,32 +54,31 @@ namespace Live2D.Cubism.Demo
 
                 foreach (var p in defaultPaths)
                 {
-                    var fullPath = System.IO.Path.Combine(
-                        System.IO.Path.GetDirectoryName(
-                            System.Reflection.Assembly.GetExecutingAssembly().Location) ?? ".",
-                        "..", "..", "..", "..", p);
-
-                    if (System.IO.File.Exists(fullPath))
-                    {
-                        LoadLive2DModel(fullPath);
-                        break;
-                    }
-
                     var projectPath = ProjectSettings.GlobalizePath($"res://{p}");
                     if (System.IO.File.Exists(projectPath))
                     {
-                        LoadLive2DModel(projectPath);
+                        foundPath = projectPath;
+                        break;
+                    }
+
+                    if (System.IO.File.Exists(p))
+                    {
+                        foundPath = System.IO.Path.GetFullPath(p);
                         break;
                     }
                 }
+            }
 
-                if (_modelNode == null)
-                {
-                    _infoLabel.Text = "No model loaded.\n" +
-                                      "Place a Live2D model in demo/models/ and set the path.\n" +
-                                      "See setup_cubism_core.sh for instructions.\n\n" +
-                                      "Math tests have been run - check console output.";
-                }
+            if (foundPath != null)
+            {
+                LoadLive2DModel(foundPath);
+            }
+            else
+            {
+                _infoLabel.Text = "No model loaded.\n" +
+                                  "Place a Live2D model in demo/models/ and set the path.\n" +
+                                  "See setup_cubism_core.sh for instructions.\n\n" +
+                                  "Math tests have been run - check console output.";
             }
         }
 
