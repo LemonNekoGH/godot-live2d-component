@@ -181,9 +181,19 @@ namespace Live2D.Cubism.Rendering
             MouthController.MouthParameterIds = lipSyncIds;
             MouthController.SetParameters(Model.Parameters);
 
-            // Look-at
+            // Look-at — default bindings match Unity CubismLookParameter on official models
             LookController = new CubismLookController();
             LookController.SetParameters(Model.Parameters);
+            LookController.LookParameters = new[]
+            {
+                new CubismLookParameter { ParameterId = "ParamAngleX", Axis = CubismLookAxis.X, Factor = 30f },
+                new CubismLookParameter { ParameterId = "ParamAngleY", Axis = CubismLookAxis.Y, Factor = 30f },
+                new CubismLookParameter { ParameterId = "ParamAngleZ", Axis = CubismLookAxis.Z, Factor = 30f },
+                new CubismLookParameter { ParameterId = "ParamEyeBallX", Axis = CubismLookAxis.X, Factor = 1f },
+                new CubismLookParameter { ParameterId = "ParamEyeBallY", Axis = CubismLookAxis.Y, Factor = 1f },
+                new CubismLookParameter { ParameterId = "ParamBodyAngleX", Axis = CubismLookAxis.X, Factor = 10f },
+            };
+            LookController.BlendMode = CubismParameterBlendMode.Override;
 
             // Pose
             PoseController = new CubismPoseController();

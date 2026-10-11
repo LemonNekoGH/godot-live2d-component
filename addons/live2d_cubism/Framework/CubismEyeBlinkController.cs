@@ -34,6 +34,9 @@ namespace Live2D.Cubism.Framework
         private BlinkState _state = BlinkState.Idle;
         private readonly RandomNumberGenerator _rng = new();
 
+        public float MinBlinkInterval { get; set; } = 2.0f;
+        public float MaxBlinkInterval { get; set; } = 6.0f;
+
         private const float ClosingDuration = 0.1f;
         private const float ClosedDuration = 0.05f;
         private const float OpeningDuration = 0.15f;
@@ -74,7 +77,7 @@ namespace Live2D.Cubism.Framework
 
         private float GetNextBlinkInterval()
         {
-            return _rng.RandfRange(2.0f, 6.0f);
+            return _rng.RandfRange(MinBlinkInterval, MaxBlinkInterval);
         }
 
         public void Update(float deltaTime)

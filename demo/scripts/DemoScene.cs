@@ -136,12 +136,54 @@ namespace Live2D.Cubism.Demo
                 _modelNode.Position = new Vector2(viewSize.X / 2f, viewSize.Y * 0.47f);
                 _modelNode.IsolateDrawableIndex = _isolateDrawable;
 
+                EnsureDemoExpressions();
                 ApplyDemoMode();
             }
             else
             {
                 GD.PrintErr($"Failed to load model: {path}");
             }
+        }
+
+        private void EnsureDemoExpressions()
+        {
+            if (_modelNode?.ExpressionController == null) return;
+            if (_modelNode.ExpressionController.Expressions != null &&
+                _modelNode.ExpressionController.Expressions.Length > 0)
+                return;
+
+            // Hiyori sample ships without exp3.json. Install a smile constructed
+            // the same way CubismExp3Json would, so the expression controller can be demoed.
+            var smile = new Live2D.Cubism.Framework.Json.CubismExp3Json
+            {
+                Type = "Live2D Expression",
+                FadeInTime = 0.4f,
+                FadeOutTime = 0.4f,
+                Parameters = new[]
+                {
+                    new Live2D.Cubism.Framework.Json.CubismExp3Json.SerializableExpressionParameter
+                    {
+                        Id = "ParamMouthForm", Value = 1f, Blend = "Add"
+                    },
+                    new Live2D.Cubism.Framework.Json.CubismExp3Json.SerializableExpressionParameter
+                    {
+                        Id = "ParamEyeLSmile", Value = 1f, Blend = "Add"
+                    },
+                    new Live2D.Cubism.Framework.Json.CubismExp3Json.SerializableExpressionParameter
+                    {
+                        Id = "ParamEyeRSmile", Value = 1f, Blend = "Add"
+                    },
+                    new Live2D.Cubism.Framework.Json.CubismExp3Json.SerializableExpressionParameter
+                    {
+                        Id = "ParamBrowLY", Value = 0.4f, Blend = "Add"
+                    },
+                    new Live2D.Cubism.Framework.Json.CubismExp3Json.SerializableExpressionParameter
+                    {
+                        Id = "ParamBrowRY", Value = 0.4f, Blend = "Add"
+                    },
+                }
+            };
+            _modelNode.ExpressionController.Expressions = new[] { smile };
         }
 
         private void ApplyDemoMode()
@@ -163,6 +205,11 @@ namespace Live2D.Cubism.Demo
                     break;
                 case "blink":
                     _modelNode.EnableFrameworkUpdate = true;
+                    if (_modelNode.EyeBlinkController != null)
+                    {
+                        _modelNode.EyeBlinkController.MinBlinkInterval = 0.6f;
+                        _modelNode.EyeBlinkController.MaxBlinkInterval = 1.2f;
+                    }
                     break;
                 case "physics":
                     _modelNode.EnableFrameworkUpdate = true;
