@@ -33,6 +33,7 @@ namespace Live2D.Cubism.Demo
         private int _isolateDrawable = -1;
         private CubismOffscreenRenderer _offscreen;
         private bool _cycleBlends;
+        private bool _cycleAlphaBlends;
 
         public override void _Ready()
         {
@@ -121,6 +122,7 @@ namespace Live2D.Cubism.Demo
                 "green" => new Color(0f, 0.8f, 0f, 1f),
                 "white" => new Color(1f, 1f, 1f, 1f),
                 "gray" => new Color(0.92f, 0.92f, 0.94f, 1f),
+                "black" => new Color(0f, 0f, 0f, 1f),
                 _ => new Color(0.93f, 0.94f, 0.96f, 1f)
             };
         }
@@ -271,6 +273,11 @@ namespace Live2D.Cubism.Demo
                         }
                     }
                     break;
+                case "alpha":
+                    _modelNode.EnableFrameworkUpdate = true;
+                    _modelNode.PlayMotionFromGroup("Idle", 0, CubismMotionPriority.PriorityIdle, true);
+                    _cycleAlphaBlends = true;
+                    break;
                 case "offscreen":
                     _modelNode.EnableFrameworkUpdate = true;
                     _modelNode.PlayMotionFromGroup("Idle", 0, CubismMotionPriority.PriorityIdle, true);
@@ -383,6 +390,12 @@ namespace Live2D.Cubism.Demo
                 // 2s per mode: ColorBurn, LinearBurn, Screen, Overlay
                 int[] cycle = { 7, 8, 10, 12 };
                 _modelNode.ForceColorBlend = cycle[Mathf.Clamp((int)(_time / 2f), 0, cycle.Length - 1)];
+            }
+
+            if (_cycleAlphaBlends && _modelNode != null)
+            {
+                // 1.6s per Core mode: Over, Atop, Out, Conjoint Over, Disjoint Over.
+                _modelNode.ForceAlphaBlend = Mathf.Clamp((int)(_time / 1.6f), 0, 4);
             }
 
             if (_modelNode?.Model != null)

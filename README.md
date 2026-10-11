@@ -63,6 +63,7 @@ Matches Unity's `PreLateUpdate` insertion exactly:
 | Normal | `blend_premul_alpha` (Cubism 4 path) |
 | AddCompatible / MultiplyCompatible | `blend_add` / `blend_mul` |
 | Add, AddGlow, Darken, Multiply, ColorBurn, LinearBurn, Lighten, Screen, ColorDodge, Overlay, SoftLight, HardLight, LinearLight, Hue, Color | Dest-color shader (`hint_screen_texture`), Core type id in `cubism_color_blend` |
+| Alpha Over, Atop, Out, Conjoint Over, Disjoint Over | Destination-alpha shader matching Unity `AlphaBlendVariants.cginc` and Native alpha blend shaders |
 | Offscreen | `CubismOffscreenRenderer` SubViewport blit (Hiyori `OffscreenCount=0`) |
 | CubismTaskableModel | ThreadPool + `ManualResetEventSlim` join before mesh rebuild |
 
@@ -153,6 +154,7 @@ Do **not** use `ffmpeg` `x11grab` for feature videos. Godot's Movie Maker advanc
 
 # Cubism 5 remaining features
 ./tools/record_feature.sh blend
+./tools/record_feature.sh alpha
 ./tools/record_feature.sh offscreen
 ./tools/record_feature.sh async
 ```

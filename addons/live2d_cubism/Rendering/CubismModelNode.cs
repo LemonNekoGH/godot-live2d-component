@@ -9,6 +9,7 @@ using System;
 using System.IO;
 using Godot;
 using Live2D.Cubism.Core;
+using Live2D.Cubism.Core.Unmanaged;
 using Live2D.Cubism.Framework;
 using Live2D.Cubism.Framework.Expression;
 using Live2D.Cubism.Framework.HarmonicMotion;
@@ -147,8 +148,16 @@ namespace Live2D.Cubism.Rendering
                 if (_textures != null && drawable.TextureIndex >= 0 && drawable.TextureIndex < _textures.Length)
                     texture = _textures[drawable.TextureIndex];
 
+                var backBufferCopy = new BackBufferCopy
+                {
+                    Name = $"BlendCopy_{drawable.Id}",
+                    CopyMode = BackBufferCopy.CopyModeEnum.Viewport,
+                    ZIndex = drawable.RenderOrder,
+                    Visible = false,
+                };
+                AddChild(backBufferCopy);
                 AddChild(renderer);
-                renderer.Initialize(Model, i, texture);
+                renderer.Initialize(Model, i, texture, backBufferCopy);
                 _drawableRenderers[i] = renderer;
             }
 
@@ -367,6 +376,8 @@ namespace Live2D.Cubism.Rendering
         public bool EnableAsyncUpdate { get; set; } = false;
         /// <summary>When &gt;= 0, every drawable uses this Core color-blend id (demo / tests).</summary>
         public int ForceColorBlend { get; set; } = -1;
+        /// <summary>When &gt;= 0, every drawable uses this Core alpha-blend id (demo / tests).</summary>
+        public int ForceAlphaBlend { get; set; } = -1;
 
         public override void _Process(double delta)
         {
@@ -426,7 +437,24 @@ namespace Live2D.Cubism.Rendering
             var parts = new System.Text.StringBuilder("[BlendModes]");
             foreach (var kv in counts)
                 parts.Append($" {kv.Key}={kv.Value}");
+            var alphaCounts = new System.Collections.Generic.Dictionary<int, int>();
+            foreach (var d in Model.Drawables)
+            {
+                alphaCounts.TryGetValue(d.AlphaBlend, out var n);
+                alphaCounts[d.AlphaBlend] = n + 1;
+            }
+            parts.Append(" alpha:");
+            foreach (var kv in alphaCounts)
+                parts.Append($" {kv.Key}={kv.Value}");
             GD.Print(parts.ToString());
+            for (int i = 0; i < Model.Drawables.Length; i++)
+            {
+                var d = Model.Drawables[i];
+                if (d.ColorBlend > CubismCoreDll.ColorBlendType_MultiplyCompatible ||
+                    d.AlphaBlend != CubismCoreDll.AlphaBlendType_Over)
+                    GD.Print($"  [BlendDrawable] index={i} id={d.Id} renderOrder={d.RenderOrder} " +
+                             $"color={d.ColorBlend} alpha={d.AlphaBlend}");
+            }
         }
 
         private void UpdateRenderers()
@@ -443,7 +471,10 @@ namespace Live2D.Cubism.Rendering
                 }
 
                 if (_drawableRenderers[i] != null)
+                {
                     _drawableRenderers[i].ColorBlendOverride = ForceColorBlend;
+                    _drawableRenderers[i].AlphaBlendOverride = ForceAlphaBlend;
+                }
                 _drawableRenderers[i]?.UpdateRender();
             }
         }

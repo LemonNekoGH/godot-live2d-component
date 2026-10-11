@@ -45,6 +45,7 @@ namespace Live2D.Cubism.Tests
             allPassed &= TestNativeBezierAndFade();
             allPassed &= TestHiyoriMotionCurvesVsNative();
             allPassed &= TestColorBlendVsNative();
+            allPassed &= TestAlphaBlendVsNative();
             allPassed &= TestUnityLoopWrapAndPartOpacity();
 
             if (allPassed)
@@ -696,6 +697,34 @@ namespace Live2D.Cubism.Tests
             ok &= AssertClose(CubismColorBlend.ColorDodge(0.5f, 0f), 0f, "ColorDodge dest=0");
 
             GD.Print(ok ? "  PASS ColorBlend formulas" : "  FAIL ColorBlend formulas");
+            return ok;
+        }
+
+        static bool TestAlphaBlendVsNative()
+        {
+            GD.Print("[TEST] Cubism 5 AlphaBlend vs Native / Unity formulas");
+            bool ok = true;
+            const float cr = 0.8f, cg = 0.3f, cb = 0.6f;
+            const float sr = 0.7f, sg = 0.2f, sb = 0.4f, sourceAlpha = 0.6f;
+            const float dr = 0.3f, dg = 0.8f, db = 0.1f, destinationAlpha = 0.25f;
+
+            void Check(int mode, float overlap, float sourceOnly, float destinationOnly, string name)
+            {
+                CubismAlphaBlend.Apply(mode, cr, cg, cb, sr, sg, sb, sourceAlpha,
+                    dr, dg, db, destinationAlpha, out var r, out var g, out var b, out var a);
+                ok &= AssertClose(r, cr * overlap + sr * sourceOnly + dr * destinationOnly, name + ".r");
+                ok &= AssertClose(g, cg * overlap + sg * sourceOnly + dg * destinationOnly, name + ".g");
+                ok &= AssertClose(b, cb * overlap + sb * sourceOnly + db * destinationOnly, name + ".b");
+                ok &= AssertClose(a, overlap + sourceOnly + destinationOnly, name + ".a");
+            }
+
+            Check(CubismCoreDll.AlphaBlendType_Over, 0.15f, 0.45f, 0.1f, "Over");
+            Check(CubismCoreDll.AlphaBlendType_Atop, 0.15f, 0f, 0.1f, "Atop");
+            Check(CubismCoreDll.AlphaBlendType_Out, 0f, 0f, 0.1f, "Out");
+            Check(CubismCoreDll.AlphaBlendType_ConjointOver, 0.25f, 0.35f, 0f, "ConjointOver");
+            Check(CubismCoreDll.AlphaBlendType_DisjointOver, 0f, 0.6f, 0.25f, "DisjointOver");
+
+            GD.Print(ok ? "  PASS AlphaBlend formulas" : "  FAIL AlphaBlend formulas");
             return ok;
         }
 

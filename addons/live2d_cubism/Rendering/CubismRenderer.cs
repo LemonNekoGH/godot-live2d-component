@@ -44,7 +44,9 @@ namespace Live2D.Cubism.Rendering
         private bool _useMask;
         private bool _invertMask;
         private bool _isHitArea;
+        private BackBufferCopy _backBufferCopy;
         public int ColorBlendOverride { get; set; } = -1;
+        public int AlphaBlendOverride { get; set; } = -1;
 
         private static Shader _normalShader;
         private static Shader _additiveShader;
@@ -54,6 +56,7 @@ namespace Live2D.Cubism.Rendering
         private static Shader _extendedMaskShader;
         private static Shader _extendedMaskInvertShader;
         private int _appliedBlend = int.MinValue;
+        private int _appliedAlphaBlend = int.MinValue;
         private static Shader _maskNormalShader;
         private static Shader _maskAdditiveShader;
         private static Shader _maskMultiplyShader;
@@ -131,9 +134,11 @@ void fragment() {{
             return GetShader(additive, multiplicative, cullBack, masked, invertMask, CubismCoreDll.ColorBlendType_Normal);
         }
 
-        private static Shader GetShader(bool additive, bool multiplicative, bool cullBack, bool masked, bool invertMask, int colorBlend)
+        private static Shader GetShader(bool additive, bool multiplicative, bool cullBack, bool masked, bool invertMask,
+            int colorBlend, int alphaBlend = CubismCoreDll.AlphaBlendType_Over)
         {
-            if (colorBlend > CubismCoreDll.ColorBlendType_MultiplyCompatible)
+            if (colorBlend > CubismCoreDll.ColorBlendType_MultiplyCompatible ||
+                alphaBlend != CubismCoreDll.AlphaBlendType_Over)
             {
                 if (masked && invertMask)
                     return _extendedMaskInvertShader ??= BuildExtendedShader(false, true, true);
@@ -175,8 +180,8 @@ void fragment() {{
             if (masked)
             {
                 maskSample = invertMask
-                    ? "    color *= 1.0 - texture(cubism_mask_texture, cubism_mask_uv).a;\n"
-                    : "    color *= texture(cubism_mask_texture, cubism_mask_uv).a;\n";
+                    ? "    color.a *= 1.0 - texture(cubism_mask_texture, cubism_mask_uv).a;\n"
+                    : "    color.a *= texture(cubism_mask_texture, cubism_mask_uv).a;\n";
             }
 
             var varyings = masked
@@ -191,7 +196,7 @@ void vertex() { cubism_mask_uv = (VERTEX - cubism_mask_center) * cubism_mask_inv
 
             shader.Code = $@"
 shader_type canvas_item;
-render_mode blend_premul_alpha{cull};
+render_mode blend_disabled{cull};
 
 uniform sampler2D cubism_texture : filter_linear_mipmap, repeat_enable;
 uniform sampler2D cubism_screen : hint_screen_texture, filter_linear;
@@ -199,6 +204,7 @@ uniform float cubism_model_opacity : hint_range(0.0, 1.0) = 1.0;
 uniform vec4 cubism_multiply_color = vec4(1.0, 1.0, 1.0, 1.0);
 uniform vec4 cubism_screen_color = vec4(0.0, 0.0, 0.0, 1.0);
 uniform int cubism_color_blend = 0;
+uniform int cubism_alpha_blend = 0;
 {varyings}
 float ColorBurnCh(float cs, float cd) {{
     if (abs(cd - 1.0) < 0.000001) return 1.0;
@@ -278,16 +284,34 @@ vec3 ColorBlend(vec3 s, vec3 d, int mode) {{
     return s;
 }}
 
+vec4 AlphaBlend(vec3 blended, vec4 source, vec4 destination, int mode) {{
+    vec3 p;
+    if (mode == 1)
+        p = vec3(source.a * destination.a, 0.0, destination.a * (1.0 - source.a));
+    else if (mode == 2)
+        p = vec3(0.0, 0.0, destination.a * (1.0 - source.a));
+    else if (mode == 3)
+        p = vec3(min(source.a, destination.a), max(source.a - destination.a, 0.0), max(destination.a - source.a, 0.0));
+    else if (mode == 4)
+        p = vec3(max(source.a + destination.a - 1.0, 0.0), min(source.a, 1.0 - destination.a), min(destination.a, 1.0 - source.a));
+    else
+        p = vec3(source.a * destination.a, source.a * (1.0 - destination.a), destination.a * (1.0 - source.a));
+    return vec4(blended * p.x + source.rgb * p.y + destination.rgb * p.z, p.x + p.y + p.z);
+}}
+
 void fragment() {{
     vec4 tex_color = texture(cubism_texture, UV);
     tex_color.rgb = tex_color.rgb * cubism_multiply_color.rgb;
     tex_color.rgb = tex_color.rgb + cubism_screen_color.rgb - (tex_color.rgb * cubism_screen_color.rgb);
     vec4 color = tex_color * COLOR;
-    color *= cubism_model_opacity;
 {maskSample}
-    vec3 dest = texture(cubism_screen, SCREEN_UV).rgb;
-    color.rgb = ColorBlend(color.rgb, dest, cubism_color_blend);
-    COLOR = vec4(color.rgb * color.a, color.a);
+    vec4 destination_pma = texture(cubism_screen, SCREEN_UV);
+    vec4 destination = destination_pma.a < 0.00001
+        ? vec4(0.0)
+        : vec4(destination_pma.rgb / destination_pma.a, destination_pma.a);
+    vec4 result = AlphaBlend(ColorBlend(color.rgb, destination.rgb, cubism_color_blend),
+        color, destination, cubism_alpha_blend);
+    COLOR = clamp(result * cubism_model_opacity, vec4(0.0), vec4(1.0));
 }}
 ";
             return shader;
@@ -313,11 +337,13 @@ void fragment() {
 
         private static Shader _maskWriteShader;
 
-        public void Initialize(CubismModel model, int drawableIndex, Texture2D texture)
+        public void Initialize(CubismModel model, int drawableIndex, Texture2D texture,
+            BackBufferCopy backBufferCopy = null)
         {
             _model = model;
             _drawableIndex = drawableIndex;
             _texture = texture;
+            _backBufferCopy = backBufferCopy;
 
             var drawable = model.Drawables[drawableIndex];
             IsMasked = drawable.MaskIndices != null && drawable.MaskIndices.Length > 0;
@@ -337,7 +363,9 @@ void fragment() {
             var drawable = _model.Drawables[_drawableIndex];
             var cullBack = !drawable.IsDoubleSided;
             var blend = EffectiveColorBlend(drawable);
-            var shader = GetShader(drawable.IsAdditive, drawable.IsMultiplicative, cullBack, masked, _invertMask, blend);
+            var alphaBlend = EffectiveAlphaBlend(drawable);
+            var shader = GetShader(drawable.IsAdditive, drawable.IsMultiplicative, cullBack, masked, _invertMask,
+                blend, alphaBlend);
 
             _material = new ShaderMaterial();
             _material.Shader = shader;
@@ -345,9 +373,11 @@ void fragment() {
                 _material.SetShaderParameter("cubism_texture", _texture);
             _material.SetShaderParameter("cubism_model_opacity", _modelOpacity);
             _material.SetShaderParameter("cubism_color_blend", blend);
+            _material.SetShaderParameter("cubism_alpha_blend", alphaBlend);
             Material = _material;
             _useMask = masked;
             _appliedBlend = blend;
+            _appliedAlphaBlend = alphaBlend;
         }
 
         public void SetMaskTexture(Texture2D maskTexture, Vector2 maskCenter, float maskScale, bool invertMask)
@@ -380,6 +410,11 @@ void fragment() {
             return ColorBlendOverride >= 0 ? ColorBlendOverride : drawable.ColorBlend;
         }
 
+        private int EffectiveAlphaBlend(CubismDrawable drawable)
+        {
+            return AlphaBlendOverride >= 0 ? AlphaBlendOverride : drawable.AlphaBlend;
+        }
+
         /// <summary>
         /// Full per-frame render update. Called after CubismModel.UpdateModel().
         /// Mirrors Unity CubismRenderController.OnDynamicDrawableData flow.
@@ -392,14 +427,25 @@ void fragment() {
 
             bool shouldShow = !_isHitArea && drawable.IsVisible && drawable.Opacity > 0.001f;
             Visible = shouldShow;
+            var effectiveColorBlend = EffectiveColorBlend(drawable);
+            var effectiveAlphaBlend = EffectiveAlphaBlend(drawable);
+            if (_backBufferCopy != null)
+                _backBufferCopy.Visible = shouldShow &&
+                    (effectiveColorBlend > CubismCoreDll.ColorBlendType_MultiplyCompatible ||
+                     effectiveAlphaBlend != CubismCoreDll.AlphaBlendType_Over);
             if (!shouldShow) return;
 
             ZIndex = drawable.RenderOrder;
+            if (_backBufferCopy != null)
+            {
+                _backBufferCopy.ZIndex = drawable.RenderOrder;
+            }
 
             if (_material != null)
             {
-                var blend = EffectiveColorBlend(drawable);
-                if (blend != _appliedBlend)
+                var blend = effectiveColorBlend;
+                var alphaBlend = effectiveAlphaBlend;
+                if (blend != _appliedBlend || alphaBlend != _appliedAlphaBlend)
                 {
                     _appliedBlend = blend;
                     ApplyMaterial(masked: _useMask);
@@ -412,6 +458,7 @@ void fragment() {
                         drawable.ScreenColor.B, drawable.ScreenColor.A));
                 _material.SetShaderParameter("cubism_model_opacity", _modelOpacity);
                 _material.SetShaderParameter("cubism_color_blend", blend);
+                _material.SetShaderParameter("cubism_alpha_blend", alphaBlend);
             }
 
             RebuildMesh();
