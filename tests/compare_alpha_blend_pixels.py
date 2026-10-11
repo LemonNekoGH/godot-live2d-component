@@ -75,7 +75,8 @@ def main() -> int:
 
     lines = [
         "# Isolated Cubism 5 alpha blend pixel comparison", "",
-        "Native and Godot each rendered the same 96×96 RGBA input grid without offscreen groups.",
+        "Native OpenGL and Godot each GPU-rendered the same 96×96 RGBA input grid without offscreen groups.",
+        "Native compiles the official SDK `FragShaderSrcAlphaBlend.frag`; Godot uses the production extended shader and a `BackBufferCopy` inside a `SubViewport`, followed by framebuffer readback.",
         "The five panels are Over, Atop, Out, Conjoint Over, and Disjoint Over.", "",
         "| Mode | Pixels | Maximum error | Mean error | PSNR |", "|---|---:|---:|---:|---:|",
     ]

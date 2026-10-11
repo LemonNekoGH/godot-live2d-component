@@ -129,6 +129,23 @@ void fragment() {{
             return shader;
         }
 
+        /// <summary>Creates the production extended-blend material for GPU integration tests.</summary>
+        public static ShaderMaterial CreateAlphaBlendTestMaterial(Texture2D source, int alphaBlend)
+        {
+            var material = new ShaderMaterial
+            {
+                Shader = GetShader(false, false, false, false, false,
+                    CubismCoreDll.ColorBlendType_Normal, alphaBlend)
+            };
+            material.SetShaderParameter("cubism_texture", source);
+            material.SetShaderParameter("cubism_model_opacity", 1f);
+            material.SetShaderParameter("cubism_multiply_color", Colors.White);
+            material.SetShaderParameter("cubism_screen_color", new Color(0f, 0f, 0f, 1f));
+            material.SetShaderParameter("cubism_color_blend", CubismCoreDll.ColorBlendType_Normal);
+            material.SetShaderParameter("cubism_alpha_blend", alphaBlend);
+            return material;
+        }
+
         private static Shader GetShader(bool additive, bool multiplicative, bool cullBack, bool masked, bool invertMask)
         {
             return GetShader(additive, multiplicative, cullBack, masked, invertMask, CubismCoreDll.ColorBlendType_Normal);

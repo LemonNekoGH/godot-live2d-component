@@ -35,7 +35,7 @@ namespace Live2D.Cubism.Demo
         private bool _cycleBlends;
         private bool _cycleAlphaBlends;
 
-        public override void _Ready()
+        public override async void _Ready()
         {
             GD.Print("=== Running Golden-Value Math Tests ===");
             CubismMathTests.RunAll();
@@ -45,7 +45,7 @@ namespace Live2D.Cubism.Demo
             var alphaDumpDirectory = OS.GetEnvironment("CUBISM_ALPHA_DUMP_DIR");
             if (!string.IsNullOrEmpty(alphaDumpDirectory))
             {
-                CubismAlphaBlendDump.WriteAll(alphaDumpDirectory);
+                await CubismAlphaBlendDump.WriteAll(this, alphaDumpDirectory);
                 GD.Print($"[AlphaBlendDump] wrote RGBA8 images to {alphaDumpDirectory}");
                 GetTree().Quit();
                 return;

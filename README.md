@@ -242,7 +242,7 @@ Set `CUBISM_NATIVE_SDK` if the SDK is not at `/tmp/cubism_native/CubismSdkForNat
 
 ### Isolated Alpha Blend pixel comparison
 
-The synthetic comparison excludes offscreen groups and renders the same 96×96 RGBA8 input grid in the Native harness and Godot for Over, Atop, Out, Conjoint Over, and Disjoint Over. It writes per-mode PSNR, maximum/mean channel error, reference images, and a 16× difference image.
+The synthetic GPU comparison excludes offscreen groups and renders the same 96×96 RGBA8 input grid in Native OpenGL and a Godot `SubViewport` for Over, Atop, Out, Conjoint Over, and Disjoint Over. Native compiles the official SDK `FragShaderSrcAlphaBlend.frag`; Godot uses the production extended shader with `BackBufferCopy`. Both sides read back RGBA8 framebuffers. The test writes per-mode PSNR, maximum/mean channel error, reference images, and a 16× difference image.
 
 ```bash
 CUBISM_NATIVE_SDK=/path/to/CubismSdkForNative-5-r.5 \
