@@ -92,16 +92,22 @@ namespace Live2D.Cubism.Demo
                 GD.Print($"Model loaded successfully: {path}");
 
                 // Scale model to fit viewport
+                // The model origin is at the canvas center; drawables extend from
+                // approximately -canvasH/2 (top) to +canvasH/2 (bottom) in model pixels.
+                // After Y-negate, head is at negative Y, feet at positive Y.
                 var viewSize = GetViewportRect().Size;
                 var canvasH = _modelNode.Model.CanvasSizeInPixels.Y;
-                if (canvasH > 0)
+                var ppu = _modelNode.Model.PixelsPerUnit;
+                if (canvasH > 0 && ppu > 0)
                 {
-                    var fitScale = (viewSize.Y * 0.9f) / canvasH;
+                    var fitScale = (viewSize.Y * 0.85f) / canvasH;
                     _modelNode.Scale = new Vector2(fitScale, fitScale);
                 }
 
-                // Center model on screen
-                _modelNode.Position = new Vector2(viewSize.X / 2f, viewSize.Y / 2f);
+                // Position model so it's vertically centered in the viewport.
+                // The model's vertex Y=0 maps to the canvas origin.
+                // Offset by half canvas height to show entire model.
+                _modelNode.Position = new Vector2(viewSize.X / 2f, viewSize.Y * 0.45f);
 
                 // Start idle motion if available
                 _modelNode.PlayMotionFromGroup("Idle", 0, CubismMotionPriority.PriorityIdle, true);
