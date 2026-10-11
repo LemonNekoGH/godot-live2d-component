@@ -240,6 +240,16 @@ Pass/fail uses parameter columns for `t < Duration` at `2e-3` (Cardano matches N
 
 Set `CUBISM_NATIVE_SDK` if the SDK is not at `/tmp/cubism_native/CubismSdkForNative-5-r.5`.
 
+### Isolated Alpha Blend pixel comparison
+
+The synthetic comparison excludes offscreen groups and renders the same 96×96 RGBA8 input grid in the Native harness and Godot for Over, Atop, Out, Conjoint Over, and Disjoint Over. It writes per-mode PSNR, maximum/mean channel error, reference images, and a 16× difference image.
+
+```bash
+CUBISM_NATIVE_SDK=/path/to/CubismSdkForNative-5-r.5 \
+GODOT=/path/to/godot \
+./tools/test_alpha_blend_pixels.sh /tmp/alpha-blend-artifacts
+```
+
 ## License
 
 The ported open-source components retain the [Live2D Open Software License](https://www.live2d.com/eula/live2d-open-software-license-agreement_en.html) from the original CubismUnityComponents.

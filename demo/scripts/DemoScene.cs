@@ -42,6 +42,15 @@ namespace Live2D.Cubism.Demo
             GD.Print("=== Math Tests Complete ===\n");
             _testsRun = true;
 
+            var alphaDumpDirectory = OS.GetEnvironment("CUBISM_ALPHA_DUMP_DIR");
+            if (!string.IsNullOrEmpty(alphaDumpDirectory))
+            {
+                CubismAlphaBlendDump.WriteAll(alphaDumpDirectory);
+                GD.Print($"[AlphaBlendDump] wrote RGBA8 images to {alphaDumpDirectory}");
+                GetTree().Quit();
+                return;
+            }
+
             _demoMode = OS.GetEnvironment("CUBISM_DEMO_MODE");
             if (string.IsNullOrEmpty(_demoMode))
                 _demoMode = "static";

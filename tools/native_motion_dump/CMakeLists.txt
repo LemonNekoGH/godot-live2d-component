@@ -82,3 +82,6 @@ target_link_libraries(FrameworkHeadless PUBLIC Live2DCubismCore)
 add_executable(native_motion_dump main.cpp)
 target_link_libraries(native_motion_dump PRIVATE FrameworkHeadless)
 target_compile_definitions(native_motion_dump PRIVATE ${CUBISM_TARGET})
+
+add_executable(native_alpha_blend_dump alpha_blend_dump.cpp)
+target_link_libraries(native_alpha_blend_dump PRIVATE Live2DCubismCore)
