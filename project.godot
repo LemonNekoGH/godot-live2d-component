@@ -1,0 +1,16 @@
+; Engine configuration file.
+; It's best edited using the editor UI and not directly,
+; but it can also be edited via text.
+
+[application]
+
+config/name="CubismGodot"
+config/features=PackedStringArray("4.4", "C#")
+
+[dotnet]
+
+project/assembly_name="CubismGodot"
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"

@@ -1,0 +1,23 @@
+# Godot
+.godot/
+*.import
+
+# .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+*.DotSettings
+
+# Native libraries (proprietary - do not commit)
+native/*.dll
+native/*.so
+native/*.dylib
+
+# Live2D sample models (licensed separately)
+demo/models/
+
+# OS
+.DS_Store
+Thumbs.db
