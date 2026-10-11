@@ -21,8 +21,7 @@ namespace Live2D.Cubism.Core
     {
         private readonly CubismModel _model;
         private readonly object _gate = new();
-        private int _queued;
-        private int _running;
+        private readonly ManualResetEventSlim _done = new(true);
         public bool ExecuteAsync { get; set; }
         public bool DidExecute { get; private set; }
 
@@ -36,15 +35,15 @@ namespace Live2D.Cubism.Core
             DidExecute = false;
             if (!ExecuteAsync)
             {
-                _model.UpdateModel();
-                DidExecute = true;
+                lock (_gate)
+                {
+                    _model.UpdateModel();
+                    DidExecute = true;
+                }
                 return;
             }
 
-            Interlocked.Exchange(ref _queued, 1);
-            if (Interlocked.CompareExchange(ref _running, 1, 0) != 0)
-                return;
-
+            _done.Reset();
             ThreadPool.QueueUserWorkItem(_ =>
             {
                 try
@@ -57,9 +56,7 @@ namespace Live2D.Cubism.Core
                 }
                 finally
                 {
-                    Interlocked.Exchange(ref _running, 0);
-                    if (Interlocked.Exchange(ref _queued, 0) == 1)
-                        StartUpdate();
+                    _done.Set();
                 }
             });
         }
@@ -68,10 +65,7 @@ namespace Live2D.Cubism.Core
         {
             if (!ExecuteAsync)
                 return;
-
-            var spins = 0;
-            while (Volatile.Read(ref _running) != 0 && spins++ < 10_000)
-                Thread.Sleep(0);
+            _done.Wait();
         }
     }
 }
