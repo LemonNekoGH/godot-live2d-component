@@ -201,14 +201,20 @@ namespace Live2D.Cubism.Demo
                     break;
                 case "expression":
                     _modelNode.EnableFrameworkUpdate = true;
+                    if (_modelNode.EyeBlinkController != null)
+                        _modelNode.EyeBlinkController.EnableAutoInput = false;
                     _modelNode.StartExpression(0);
                     break;
                 case "blink":
                     _modelNode.EnableFrameworkUpdate = true;
-                    if (_modelNode.EyeBlinkController != null)
+                    if (_modelNode.EyeBlinkController?.AutoInput != null)
                     {
-                        _modelNode.EyeBlinkController.MinBlinkInterval = 0.6f;
-                        _modelNode.EyeBlinkController.MaxBlinkInterval = 1.2f;
+                        // Several full close/open cycles in an 8s Movie Maker clip.
+                        // Interval is unscaled (Unity Idle: NextBlinkingTime -= deltaTime).
+                        var auto = _modelNode.EyeBlinkController.AutoInput;
+                        auto.Mean = 0.9f;
+                        auto.MaximumDeviation = 0.3f;
+                        auto.Reset();
                     }
                     break;
                 case "physics":
@@ -221,6 +227,12 @@ namespace Live2D.Cubism.Demo
                     break;
                 case "lipsync":
                     _modelNode.EnableFrameworkUpdate = true;
+                    if (_modelNode.EyeBlinkController != null)
+                        _modelNode.EyeBlinkController.EnableAutoInput = false;
+                    // ParamMouthOpenY default is 0; Unity Multiply would stay 0.
+                    // Override so the varying input is the mouth value itself.
+                    if (_modelNode.MouthController != null)
+                        _modelNode.MouthController.BlendMode = Live2D.Cubism.Framework.CubismParameterBlendMode.Override;
                     break;
                 case "lookat":
                     _modelNode.EnableFrameworkUpdate = true;

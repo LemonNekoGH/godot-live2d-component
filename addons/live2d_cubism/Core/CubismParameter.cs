@@ -47,6 +47,12 @@ namespace Live2D.Cubism.Core
         }
 
         /// <summary>
+        /// Parameter-only repeat query. Mirrors Unity CubismParameter.IsRepeat when the
+        /// model-level override flag is not available on this object.
+        /// </summary>
+        public bool IsRepeat() => IsRepeat(false);
+
+        /// <summary>
         /// Wraps value to stay within [MinimumValue, MaximumValue] using modular arithmetic.
         /// Mirrors Unity CubismParameter.GetParameterRepeatValue exactly.
         /// </summary>

@@ -44,15 +44,17 @@ addons/live2d_cubism/
 Matches Unity's `PreLateUpdate` insertion exactly:
 
 1. **Motion/Fade** (order 100) — curve evaluation, fade in/out
-2. **Pose** (order 200) — mutually exclusive part visibility
-3. **Expression** (order 300) — expression blending (Add/Multiply/Override)
-4. **Eye Blink** (order 400) — automatic blink cycle
-5. **Mouth** (order 500) — lip sync input
-6. **Harmonic Motion** (order 600) — sinusoidal parameter animation
-7. **Look-at** (order 700) — gaze direction
-8. **Physics** (order 800) — pendulum simulation with interpolation
-9. **Core Update** — `csmUpdateModel` (parameter → drawable)
-10. **Rendering** (order 10000) — mesh rebuild + draw
+2. **ParameterStore.Save** (order 150) — snapshot after motion, before additive controllers
+3. **Pose** (order 200) — mutually exclusive part visibility
+4. **Expression** (order 300) — expression blending (Add/Multiply/Override)
+5. **Eye Blink** (order 400) — `CubismAutoEyeBlinkInput` (Timescale 10, Idle uses unscaled `deltaTime`) + Multiply `BlendToValue`
+6. **Mouth** (order 500) — lip sync input (Unity default Multiply)
+7. **Harmonic Motion** (order 600) — sinusoidal parameter animation
+8. **Look-at** (order 700) — gaze direction
+9. **Physics** (order 800) — pendulum simulation with interpolation
+10. **Core Update** — `csmUpdateModel` (parameter → drawable)
+11. **ParameterStore.Restore** — after Core read-back, so next frame's Multiply blink/mouth starts from the saved base (not last frame's 0)
+12. **Rendering** (order 10000) — mesh rebuild + draw
 
 ## Blend Modes
 

@@ -29,15 +29,20 @@ namespace Live2D.Cubism.Rendering
     ///
     /// Update order (mirrors Unity CubismUpdateController execution order):
     ///   1. CubismFadeController (motion fade)           - order 100
-    ///   2. CubismPoseController                         - order 200
-    ///   3. CubismExpressionController                   - order 300
-    ///   4. CubismEyeBlinkController                     - order 400
-    ///   5. CubismMouthController                        - order 500
-    ///   6. CubismHarmonicMotionController               - order 600
-    ///   7. CubismLookController                         - order 700
-    ///   8. CubismPhysicsController                      - order 800
-    ///   9. CubismModel.UpdateModel() (Core update)
-    ///  10. CubismRenderController (mesh rebuild)        - order 10000
+    ///   2. CubismParameterStore.SaveParameters()        - order 150
+    ///   3. CubismPoseController                         - order 200
+    ///   4. CubismExpressionController                   - order 300
+    ///   5. CubismEyeBlinkController                     - order 400
+    ///   6. CubismMouthController                        - order 500
+    ///   7. CubismHarmonicMotionController               - order 600
+    ///   8. CubismLookController                         - order 700
+    ///   9. CubismPhysicsController                      - order 800
+    ///  10. CubismModel.UpdateModel() (Core update)
+    ///  11. CubismParameterStore.RestoreParameters()     - after Core read-back
+    ///  12. CubismRenderController (mesh rebuild)        - order 10000
+    ///
+    /// Restore after Core is required so Multiply blink/mouth apply to the saved
+    /// base (typically 1 / motion) rather than last frame's closed 0.
     /// </summary>
     public partial class CubismModelNode : Node2D
     {
@@ -55,6 +60,8 @@ namespace Live2D.Cubism.Rendering
         public CubismHarmonicMotionController HarmonicMotionController { get; private set; }
         public CubismRaycaster Raycaster { get; private set; }
         public CubismUserDataController UserDataController { get; private set; }
+
+        public CubismParameterStore ParameterStore { get; private set; }
 
         private CubismDrawableRenderer[] _drawableRenderers;
         private Texture2D[] _textures;
@@ -235,6 +242,11 @@ namespace Live2D.Cubism.Rendering
                     hitIds[i] = ModelJson.HitAreas[i].Id;
                 Raycaster.Initialize(Model, hitIds);
             }
+
+            // Parameter store: save the moc defaults so Multiply blink/mouth
+            // and Additive expressions apply to a stable base each frame.
+            ParameterStore = new CubismParameterStore();
+            ParameterStore.Initialize(Model.Parameters, Model.Parts);
         }
 
         private void InitializePhysics(CubismPhysics3Json physics3)
@@ -357,7 +369,12 @@ namespace Live2D.Cubism.Rendering
             // Framework update in execution order (mirrors Unity CubismUpdateController)
             if (EnableFrameworkUpdate)
             {
+                // Start from last saved base (Unity restores after Core on the
+                // previous frame, so LateUpdate already sees restored values).
+                ParameterStore?.RestoreParameters();
+
                 MotionController?.Update(dt);
+                ParameterStore?.SaveParameters();
                 PoseController?.Update(dt);
                 ExpressionController?.Update(dt);
                 EyeBlinkController?.Update(dt);
@@ -367,10 +384,16 @@ namespace Live2D.Cubism.Rendering
                 PhysicsRig?.Evaluate(dt);
             }
 
-            // 9. Core update (writes params/parts → Core → reads back drawables)
+            // Core update (writes params/parts → Core → reads back drawables)
             Model.UpdateModel();
 
-            // 10. Masks then renderers (order 10000)
+            // Unity CubismModel.OnModelUpdate: after TryReadParameters, restore
+            // so next frame's Multiply/Add start from the saved (pre-blink) base.
+            // Drawables already captured the blinked/mouthed pose for this frame.
+            if (EnableFrameworkUpdate)
+                ParameterStore?.RestoreParameters();
+
+            // Masks then renderers (order 10000)
             _maskController?.UpdateMasks();
             UpdateRenderers();
         }

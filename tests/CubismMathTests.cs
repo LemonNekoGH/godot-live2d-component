@@ -9,6 +9,7 @@
 
 using System;
 using Live2D.Cubism.Core;
+using Live2D.Cubism.Framework;
 using Live2D.Cubism.Framework.Physics;
 using Live2D.Cubism.Framework.Json;
 using Godot;
@@ -36,6 +37,8 @@ namespace Live2D.Cubism.Tests
             allPassed &= TestParameterClampValue();
             allPassed &= TestMotionCurveEvaluation();
             allPassed &= TestBezierCurveEvaluation();
+            allPassed &= TestEyeBlinkTimingCurve();
+            allPassed &= TestParameterStoreMultiplyRestore();
 
             if (allPassed)
                 GD.Print("[TESTS] All golden-value math tests PASSED");
@@ -284,6 +287,246 @@ namespace Live2D.Cubism.Tests
             ok &= AssertClose(CubismMotion3Json.EvaluateCurve(bezier, 1f), 1f, "Bezier(t=1)");
 
             return ok;
+        }
+
+        /// <summary>
+        /// Golden values: CubismAutoEyeBlinkInput vs a line-for-line copy of Unity
+        /// CubismAutoEyeBlinkInput.UpdateEyeBlink* at Movie Maker dt = 1/60.
+        /// Also asserts Idle uses unscaled deltaTime (not Timescale).
+        /// </summary>
+        static bool TestEyeBlinkTimingCurve()
+        {
+            GD.Print("[TEST] CubismAutoEyeBlinkInput vs Unity timing curve");
+            bool ok = true;
+
+            const float dt = 1f / 60f;
+            const float timescale = 10f;
+            const float closing = 1.0f;
+            const float closed = 0.5f;
+            const float opening = 1.5f;
+            const float firstBlinkAt = 0.05f;
+            const int frames = 180;
+
+            var ours = new CubismAutoEyeBlinkInput(new Random(0));
+            ours.Timescale = timescale;
+            ours.SetBlinkingSettings(closing, closed, opening);
+            ours.Mean = 10f;
+            ours.MaximumDeviation = 0f;
+            ours.Reset();
+            ours.NextBlinkingTime = firstBlinkAt;
+
+            var unity = new UnityEyeBlinkReference();
+            unity.Timescale = timescale;
+            unity.SetBlinkingSettings(closing, closed, opening);
+            unity.Mean = 10f;
+            unity.MaximumDeviation = 0f;
+            unity.Reset();
+            unity.NextBlinkingTime = firstBlinkAt;
+
+            int closeStart = -1, closedStart = -1, openStart = -1, idleAgain = -1;
+            float minOpening = 1f;
+
+            for (int i = 0; i < frames; i++)
+            {
+                float oursValue = ours.Evaluate(dt);
+                float unityValue = unity.Evaluate(dt);
+                if (MathF.Abs(oursValue - unityValue) > Epsilon)
+                {
+                    GD.PrintErr($"  FAIL blink frame {i} t={i * dt:F4}: expected {unityValue}, got {oursValue}");
+                    ok = false;
+                }
+
+                if (oursValue < minOpening)
+                    minOpening = oursValue;
+
+                if (closeStart < 0 && ours.CurrentPhase == CubismAutoEyeBlinkInput.Phase.ClosingEyes)
+                    closeStart = i;
+                if (closedStart < 0 && ours.CurrentPhase == CubismAutoEyeBlinkInput.Phase.ClosedEyes)
+                    closedStart = i;
+                if (openStart < 0 && ours.CurrentPhase == CubismAutoEyeBlinkInput.Phase.OpeningEyes)
+                    openStart = i;
+                if (openStart >= 0 && idleAgain < 0 && ours.CurrentPhase == CubismAutoEyeBlinkInput.Phase.Idling)
+                    idleAgain = i;
+            }
+
+            if (ok)
+                GD.Print($"  PASS blink curve matches Unity for {frames} frames at dt=1/60");
+
+            ok &= minOpening <= 0.001f;
+            if (minOpening > 0.001f)
+                GD.PrintErr($"  FAIL blink reaches closed: min={minOpening}");
+            else
+                GD.Print($"  PASS blink reaches closed: min={minOpening}");
+
+            // Idle countdown is unscaled: first close at ~firstBlinkAt, not firstBlinkAt/Timescale.
+            float closeAt = closeStart * dt;
+            ok &= closeAt >= firstBlinkAt - dt && closeAt <= firstBlinkAt + 2f * dt;
+            GD.Print(ok
+                ? $"  PASS idle uses unscaled dt: close starts at {closeAt:F4}s (expect ~{firstBlinkAt})"
+                : $"  FAIL idle timing: close starts at {closeAt:F4}s");
+
+            // Phase wall times = setting / Timescale (Unity UserTimeSeconds += dt * Timescale).
+            float closeDur = (closedStart - closeStart) * dt;
+            float closedDur = (openStart - closedStart) * dt;
+            float openDur = (idleAgain - openStart) * dt;
+            ok &= AssertClose(closeDur, closing / timescale, "closing wall duration");
+            ok &= AssertClose(closedDur, closed / timescale, "closed wall duration");
+            ok &= AssertClose(openDur, opening / timescale, "opening wall duration");
+
+            // If Idle wrongly used scaled time, close would start at ~0.005s.
+            if (closeAt < firstBlinkAt * 0.5f)
+            {
+                GD.PrintErr("  FAIL Idle appears to use Timescale (blinked too early)");
+                ok = false;
+            }
+
+            return ok;
+        }
+
+        /// <summary>
+        /// Multiply blink without ParameterStore restore sticks at 0 after the first close.
+        /// Restore after Core read-back lets the next Opening frame reopen.
+        /// </summary>
+        static bool TestParameterStoreMultiplyRestore()
+        {
+            GD.Print("[TEST] ParameterStore restore so Multiply blink can reopen");
+            bool ok = true;
+
+            var param = new CubismParameter
+            {
+                Id = "ParamEyeLOpen",
+                Value = 1f,
+                MinimumValue = 0f,
+                MaximumValue = 1f,
+                DefaultValue = 1f
+            };
+            var part = new CubismPart { Opacity = 1f };
+            var store = new CubismParameterStore();
+            store.Initialize(new[] { param }, new[] { part });
+
+            // Close: Multiply 1 * 0 = 0, as Core read-back would leave it.
+            param.Value *= 0f;
+            ok &= AssertClose(param.Value, 0f, "after close multiply");
+
+            // Bug path: Opening 0.5 without restore stays 0.
+            float stuck = param.Value * 0.5f;
+            ok &= AssertClose(stuck, 0f, "without restore opening stays 0");
+
+            // Unity path: Restore then Opening Multiply.
+            store.RestoreParameters();
+            ok &= AssertClose(param.Value, 1f, "restore returns saved 1");
+            param.BlendToValue(CubismParameterBlendMode.Multiply, 0.5f);
+            ok &= AssertClose(param.Value, 0.5f, "opening multiply after restore");
+
+            store.RestoreParameters();
+            param.BlendToValue(CubismParameterBlendMode.Multiply, 1f);
+            ok &= AssertClose(param.Value, 1f, "fully open after restore");
+
+            return ok;
+        }
+
+        /// <summary>
+        /// Line-for-line Unity CubismAutoEyeBlinkInput phase machine (no UnityEngine).
+        /// Random interval is unused when NextBlinkingTime is assigned by the test.
+        /// </summary>
+        sealed class UnityEyeBlinkReference
+        {
+            public float Mean = 2.5f;
+            public float MaximumDeviation = 2f;
+            public float Timescale = 10f;
+            public Phase CurrentPhase { get; private set; }
+            public float UserTimeSeconds { get; private set; }
+            public float StateStartTimeSeconds { get; private set; }
+            public float ClosingSeconds { get; private set; }
+            public float ClosedSeconds { get; private set; }
+            public float OpeningSeconds { get; private set; }
+            public float NextBlinkingTime { get; set; }
+
+            public enum Phase
+            {
+                Idling,
+                ClosingEyes,
+                ClosedEyes,
+                OpeningEyes
+            }
+
+            public void Reset()
+            {
+                CurrentPhase = Phase.Idling;
+                NextBlinkingTime = Mean;
+                UserTimeSeconds = 0f;
+                StateStartTimeSeconds = 0f;
+            }
+
+            public void SetBlinkingSettings(float closing, float closed, float opening)
+            {
+                ClosingSeconds = closing;
+                ClosedSeconds = closed;
+                OpeningSeconds = opening;
+            }
+
+            public float Evaluate(float deltaTime)
+            {
+                UserTimeSeconds += (deltaTime * Timescale);
+                switch (CurrentPhase)
+                {
+                    case Phase.ClosingEyes:
+                        return UpdateEyeBlinkClosing();
+                    case Phase.ClosedEyes:
+                        return UpdateEyeBlinkClosed();
+                    case Phase.OpeningEyes:
+                        return UpdateEyeBlinkOpening();
+                    case Phase.Idling:
+                        return UpdateEyeBlinkIdling(deltaTime);
+                    default:
+                        return 0f;
+                }
+            }
+
+            private float UpdateEyeBlinkClosing()
+            {
+                var t = (UserTimeSeconds - StateStartTimeSeconds) / ClosingSeconds;
+                if (t >= 1.0f)
+                {
+                    CurrentPhase = Phase.ClosedEyes;
+                    StateStartTimeSeconds = UserTimeSeconds;
+                }
+                return 1.0f - t;
+            }
+
+            private float UpdateEyeBlinkClosed()
+            {
+                var t = (UserTimeSeconds - StateStartTimeSeconds) / ClosedSeconds;
+                if (t >= 1.0f)
+                {
+                    CurrentPhase = Phase.OpeningEyes;
+                    StateStartTimeSeconds = UserTimeSeconds;
+                }
+                return 0.0f;
+            }
+
+            private float UpdateEyeBlinkOpening()
+            {
+                var t = (UserTimeSeconds - StateStartTimeSeconds) / OpeningSeconds;
+                if (t >= 1.0f)
+                {
+                    t = 1.0f;
+                    CurrentPhase = Phase.Idling;
+                    NextBlinkingTime = Mean;
+                }
+                return t;
+            }
+
+            private float UpdateEyeBlinkIdling(float deltaTime)
+            {
+                NextBlinkingTime -= deltaTime;
+                if (NextBlinkingTime < 0.0f)
+                {
+                    CurrentPhase = Phase.ClosingEyes;
+                    StateStartTimeSeconds = UserTimeSeconds;
+                }
+                return 1.0f;
+            }
         }
     }
 }

@@ -16,6 +16,7 @@ namespace Live2D.Cubism.Framework
     public static class CubismUpdateExecutionOrder
     {
         public const int CubismFadeController = 100;
+        public const int CubismParameterStoreSaveParameters = 150;
         public const int CubismPoseController = 200;
         public const int CubismExpressionController = 300;
         public const int CubismEyeBlinkController = 400;

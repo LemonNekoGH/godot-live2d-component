@@ -31,16 +31,24 @@ namespace Live2D.Cubism.Framework
 
         public void SaveParameters()
         {
+            if (_parameters == null || _savedParameterValues == null)
+                return;
             for (int i = 0; i < _parameters.Length; i++)
                 _savedParameterValues[i] = _parameters[i].Value;
+            if (_parts == null || _savedPartOpacities == null)
+                return;
             for (int i = 0; i < _parts.Length; i++)
                 _savedPartOpacities[i] = _parts[i].Opacity;
         }
 
         public void RestoreParameters()
         {
+            if (_parameters == null || _savedParameterValues == null)
+                return;
             for (int i = 0; i < _parameters.Length; i++)
                 _parameters[i].Value = _savedParameterValues[i];
+            if (_parts == null || _savedPartOpacities == null)
+                return;
             for (int i = 0; i < _parts.Length; i++)
                 _parts[i].Opacity = _savedPartOpacities[i];
         }

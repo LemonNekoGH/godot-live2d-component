@@ -6,18 +6,13 @@
  */
 
 using Live2D.Cubism.Core;
-using Godot;
 
 namespace Live2D.Cubism.Framework
 {
     /// <summary>
-    /// Automatic eye blink controller. Mirrors Unity CubismEyeBlinkController + CubismAutoEyeBlinkInput.
-    ///
-    /// Timing (mirrors Unity exactly):
-    /// - Mean blink interval: ~3.5 seconds (random 2.0–6.0s)
-    /// - Close phase: 0.1s
-    /// - Closed phase: 0.05s
-    /// - Open phase: 0.15s
+    /// Eye-blink parameter controller. Mirrors Unity CubismEyeBlinkController:
+    /// applies <see cref="EyeOpening"/> via <see cref="CubismParameterExtensionMethods.BlendToValue"/>.
+    /// Timing is owned by <see cref="AutoInput"/> (Unity CubismAutoEyeBlinkInput).
     /// </summary>
     public class CubismEyeBlinkController
     {
@@ -25,40 +20,30 @@ namespace Live2D.Cubism.Framework
 
         public CubismParameterBlendMode BlendMode { get; set; } = CubismParameterBlendMode.Multiply;
 
+        public float EyeOpening { get; set; } = 1f;
+
+        public bool EnableAutoInput { get; set; } = true;
+
+        public CubismAutoEyeBlinkInput AutoInput { get; } = new();
+
         private CubismParameter[] _parameters;
         private CubismParameter[] _eyeBlinkParameters;
-
-        private float _blinkValue = 1f;
-        private float _nextBlinkTime;
-        private float _stateTimer;
-        private BlinkState _state = BlinkState.Idle;
-        private readonly RandomNumberGenerator _rng = new();
-
-        public float MinBlinkInterval { get; set; } = 2.0f;
-        public float MaxBlinkInterval { get; set; } = 6.0f;
-
-        private const float ClosingDuration = 0.1f;
-        private const float ClosedDuration = 0.05f;
-        private const float OpeningDuration = 0.15f;
-
-        private enum BlinkState
-        {
-            Idle,
-            Closing,
-            Closed,
-            Opening
-        }
 
         public void SetParameters(CubismParameter[] parameters)
         {
             _parameters = parameters;
-            _nextBlinkTime = GetNextBlinkInterval();
             ResolveEyeBlinkParameters();
+            AutoInput.Reset();
+            EyeOpening = 1f;
         }
 
         private void ResolveEyeBlinkParameters()
         {
-            if (_parameters == null || EyeBlinkParameterIds == null) return;
+            if (_parameters == null || EyeBlinkParameterIds == null)
+            {
+                _eyeBlinkParameters = null;
+                return;
+            }
 
             var list = new System.Collections.Generic.List<CubismParameter>();
             foreach (var id in EyeBlinkParameterIds)
@@ -75,78 +60,15 @@ namespace Live2D.Cubism.Framework
             _eyeBlinkParameters = list.ToArray();
         }
 
-        private float GetNextBlinkInterval()
-        {
-            return _rng.RandfRange(MinBlinkInterval, MaxBlinkInterval);
-        }
-
         public void Update(float deltaTime)
         {
-            if (_eyeBlinkParameters == null || _eyeBlinkParameters.Length == 0) return;
+            if (_eyeBlinkParameters == null || _eyeBlinkParameters.Length == 0)
+                return;
 
-            switch (_state)
-            {
-                case BlinkState.Idle:
-                    _stateTimer += deltaTime;
-                    if (_stateTimer >= _nextBlinkTime)
-                    {
-                        _state = BlinkState.Closing;
-                        _stateTimer = 0f;
-                    }
-                    _blinkValue = 1f;
-                    break;
+            if (EnableAutoInput)
+                EyeOpening = AutoInput.Evaluate(deltaTime);
 
-                case BlinkState.Closing:
-                    _stateTimer += deltaTime;
-                    _blinkValue = 1f - (_stateTimer / ClosingDuration);
-                    if (_stateTimer >= ClosingDuration)
-                    {
-                        _state = BlinkState.Closed;
-                        _stateTimer = 0f;
-                        _blinkValue = 0f;
-                    }
-                    break;
-
-                case BlinkState.Closed:
-                    _stateTimer += deltaTime;
-                    _blinkValue = 0f;
-                    if (_stateTimer >= ClosedDuration)
-                    {
-                        _state = BlinkState.Opening;
-                        _stateTimer = 0f;
-                    }
-                    break;
-
-                case BlinkState.Opening:
-                    _stateTimer += deltaTime;
-                    _blinkValue = _stateTimer / OpeningDuration;
-                    if (_stateTimer >= OpeningDuration)
-                    {
-                        _state = BlinkState.Idle;
-                        _stateTimer = 0f;
-                        _nextBlinkTime = GetNextBlinkInterval();
-                        _blinkValue = 1f;
-                    }
-                    break;
-            }
-
-            _blinkValue = Mathf.Clamp(_blinkValue, 0f, 1f);
-
-            foreach (var param in _eyeBlinkParameters)
-            {
-                switch (BlendMode)
-                {
-                    case CubismParameterBlendMode.Override:
-                        param.Value = _blinkValue;
-                        break;
-                    case CubismParameterBlendMode.Additive:
-                        param.Value += _blinkValue;
-                        break;
-                    case CubismParameterBlendMode.Multiply:
-                        param.Value *= _blinkValue;
-                        break;
-                }
-            }
+            _eyeBlinkParameters.BlendToValue(BlendMode, EyeOpening);
         }
     }
 }
