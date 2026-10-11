@@ -92,22 +92,22 @@ namespace Live2D.Cubism.Demo
                 GD.Print($"Model loaded successfully: {path}");
 
                 // Scale model to fit viewport
-                // The model origin is at the canvas center; drawables extend from
-                // approximately -canvasH/2 (top) to +canvasH/2 (bottom) in model pixels.
-                // After Y-negate, head is at negative Y, feet at positive Y.
+                // From diagnostic: global bounds are (-566,-1785)-(638,1993) pixels
+                // Total height = ~3778 pixels, total width = ~1203 pixels
+                // The model Y=0 is at roughly waist level
                 var viewSize = GetViewportRect().Size;
-                var canvasH = _modelNode.Model.CanvasSizeInPixels.Y;
-                var ppu = _modelNode.Model.PixelsPerUnit;
-                if (canvasH > 0 && ppu > 0)
-                {
-                    var fitScale = (viewSize.Y * 0.85f) / canvasH;
-                    _modelNode.Scale = new Vector2(fitScale, fitScale);
-                }
 
-                // Position model so it's vertically centered in the viewport.
-                // The model's vertex Y=0 maps to the canvas origin.
-                // Offset by half canvas height to show entire model.
-                _modelNode.Position = new Vector2(viewSize.X / 2f, viewSize.Y * 0.45f);
+                // Scale so the full model height fits in the viewport
+                float modelHeight = 3778f; // from diagnostic
+                var fitScale = (viewSize.Y * 0.95f) / modelHeight;
+                _modelNode.Scale = new Vector2(fitScale, fitScale);
+
+                // Center: model center (0,0) maps to about waist level
+                // Y center of bounds is at about (+104 pixels unscaled) = slightly below center
+                // After Y-negate: the model extends from Y=-1993 (feet, bottom of screen)
+                // to Y=+1785 (head, top of screen)
+                // So Y=0 in model space = waist, need to offset to center on screen
+                _modelNode.Position = new Vector2(viewSize.X / 2f, viewSize.Y * 0.47f);
 
                 // Start idle motion if available
                 _modelNode.PlayMotionFromGroup("Idle", 0, CubismMotionPriority.PriorityIdle, true);

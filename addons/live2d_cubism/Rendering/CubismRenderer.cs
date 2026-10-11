@@ -60,22 +60,15 @@ shader_type canvas_item;
 render_mode {blendMode};
 
 uniform sampler2D cubism_texture : filter_linear_mipmap;
-uniform float cubism_model_opacity : hint_range(0.0, 1.0) = 1.0;
-uniform vec4 cubism_multiply_color : source_color = vec4(1.0, 1.0, 1.0, 1.0);
-uniform vec4 cubism_screen_color : source_color = vec4(0.0, 0.0, 0.0, 0.0);
 
 void fragment() {{
-    vec4 tex_color = texture(cubism_texture, UV);
-
-    // Apply multiply color
-    vec4 result = tex_color * cubism_multiply_color;
-    // Apply screen color
-    result.rgb = result.rgb + cubism_screen_color.rgb - (result.rgb * cubism_screen_color.rgb);
-
-    // Apply opacity from vertex color alpha (drawable opacity * model opacity baked in)
-    result.a *= COLOR.a * cubism_model_opacity;
-
-    COLOR = result;
+    vec4 t = texture(cubism_texture, UV);
+    // If texture alpha > 0, show the texture. Otherwise show magenta for debug.
+    if (t.a > 0.01) {{
+        COLOR = t;
+    }} else {{
+        COLOR = vec4(0.0); // transparent
+    }}
 }}
 ";
             return shader;
@@ -107,8 +100,8 @@ render_mode blend_mix;
 uniform sampler2D cubism_texture : filter_linear_mipmap;
 uniform sampler2D cubism_mask_texture : hint_default_white;
 uniform float cubism_model_opacity : hint_range(0.0, 1.0) = 1.0;
-uniform vec4 cubism_multiply_color : source_color = vec4(1.0, 1.0, 1.0, 1.0);
-uniform vec4 cubism_screen_color : source_color = vec4(0.0, 0.0, 0.0, 0.0);
+uniform vec4 cubism_multiply_color = vec4(1.0, 1.0, 1.0, 1.0);
+uniform vec4 cubism_screen_color = vec4(0.0, 0.0, 0.0, 0.0);
 uniform bool cubism_invert_mask = false;
 
 void fragment() {
@@ -131,6 +124,8 @@ void fragment() {
             return _maskShader;
         }
 
+        public bool IsMasked { get; private set; }
+
         public void Initialize(CubismModel model, int drawableIndex, Texture2D texture)
         {
             _model = model;
@@ -138,6 +133,8 @@ void fragment() {
             _texture = texture;
 
             var drawable = model.Drawables[drawableIndex];
+
+            IsMasked = drawable.MaskIndices != null && drawable.MaskIndices.Length > 0;
 
             // Select shader based on blend mode
             Shader shader;
@@ -150,7 +147,6 @@ void fragment() {
 
             _material = new ShaderMaterial();
             _material.Shader = shader;
-
             if (_texture != null)
                 _material.SetShaderParameter("cubism_texture", _texture);
 
@@ -194,22 +190,25 @@ void fragment() {
             var drawable = _model.Drawables[_drawableIndex];
 
             // Culling (matches Unity: MeshRenderer.enabled = IsVisible)
-            bool shouldShow = drawable.IsVisible && drawable.Opacity > 0.001f;
+            // Temporarily hide masked drawables until clipping mask pipeline is implemented
+            bool shouldShow = drawable.IsVisible && drawable.Opacity > 0.001f && !IsMasked;
             Visible = shouldShow;
             if (!shouldShow) return;
 
             // Draw order (matches Unity: SortingOrder = RenderOrder)
             ZIndex = drawable.RenderOrder;
 
-            // Update multiply/screen colors
-            _material.SetShaderParameter("cubism_multiply_color",
-                new Godot.Color(drawable.MultiplyColor.R, drawable.MultiplyColor.G,
-                    drawable.MultiplyColor.B, drawable.MultiplyColor.A));
-            _material.SetShaderParameter("cubism_screen_color",
-                new Godot.Color(drawable.ScreenColor.R, drawable.ScreenColor.G,
-                    drawable.ScreenColor.B, drawable.ScreenColor.A));
-
-            _material.SetShaderParameter("cubism_model_opacity", _modelOpacity);
+            // Shader uniforms (only when _material is active)
+            if (_material != null)
+            {
+                _material.SetShaderParameter("cubism_multiply_color",
+                    new Godot.Color(drawable.MultiplyColor.R, drawable.MultiplyColor.G,
+                        drawable.MultiplyColor.B, drawable.MultiplyColor.A));
+                _material.SetShaderParameter("cubism_screen_color",
+                    new Godot.Color(drawable.ScreenColor.R, drawable.ScreenColor.G,
+                        drawable.ScreenColor.B, drawable.ScreenColor.A));
+                _material.SetShaderParameter("cubism_model_opacity", _modelOpacity);
+            }
 
             // Rebuild mesh with updated positions
             RebuildMesh();
