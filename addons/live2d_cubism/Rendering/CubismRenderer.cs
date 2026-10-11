@@ -55,13 +55,13 @@ namespace Live2D.Cubism.Rendering
 shader_type canvas_item;
 render_mode blend_mix;
 
-uniform sampler2D main_texture : source_color, filter_linear_mipmap;
+uniform sampler2D cubism_texture : filter_linear_mipmap;
 uniform vec4 multiply_color : source_color = vec4(1.0, 1.0, 1.0, 1.0);
 uniform vec4 screen_color : source_color = vec4(0.0, 0.0, 0.0, 0.0);
 uniform float drawable_opacity : hint_range(0.0, 1.0) = 1.0;
 
 void fragment() {
-    vec4 tex_color = texture(main_texture, UV);
+    vec4 tex_color = texture(cubism_texture, UV);
     vec4 result = tex_color * multiply_color;
     result.rgb = result.rgb + screen_color.rgb - (result.rgb * screen_color.rgb);
     result.a *= drawable_opacity;
@@ -79,7 +79,7 @@ void fragment() {
             _maskedShader.Code = @"
 shader_type canvas_item;
 
-uniform sampler2D main_texture : source_color;
+uniform sampler2D cubism_texture : filter_linear_mipmap;
 uniform sampler2D mask_texture : hint_default_white;
 uniform vec4 multiply_color : source_color = vec4(1.0, 1.0, 1.0, 1.0);
 uniform vec4 screen_color : source_color = vec4(0.0, 0.0, 0.0, 0.0);
@@ -87,7 +87,7 @@ uniform float drawable_opacity : hint_range(0.0, 1.0) = 1.0;
 uniform bool invert_mask = false;
 
 void fragment() {
-    vec4 tex_color = texture(main_texture, UV);
+    vec4 tex_color = texture(cubism_texture, UV);
     vec4 result = tex_color * multiply_color;
     result.rgb = result.rgb + screen_color.rgb - (result.rgb * screen_color.rgb);
 
@@ -110,7 +110,7 @@ void fragment() {
             _material = new ShaderMaterial();
             _material.Shader = GetNormalShader();
             if (texture != null)
-                _material.SetShaderParameter("main_texture", texture);
+                _material.SetShaderParameter("cubism_texture", texture);
 
             Material = _material;
 
