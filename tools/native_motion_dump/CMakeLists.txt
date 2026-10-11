@@ -64,7 +64,7 @@ add_custom_command(
 )
 
 add_library(FrameworkHeadless STATIC ${FW_SRCS})
-target_include_directories(FrameworkHeadless PUBLIC ${FW} ${CORE_PATH}/include)
+target_include_directories(FrameworkHeadless PUBLIC ${FW} ${FW}/Motion ${CORE_PATH}/include)
 target_compile_definitions(FrameworkHeadless PUBLIC CSM_TARGET_LINUX_GL)
 target_link_libraries(FrameworkHeadless PUBLIC Live2DCubismCore)
 

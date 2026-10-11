@@ -140,7 +140,11 @@ namespace Live2D.Cubism.Core
             return -(b + MathF.Sqrt(b * b - 4.0f * a * c)) / (2.0f * a);
         }
 
-        /// <summary>Native CubismMath.CardanoAlgorithmForBezier. Used when AreBeziersRestricted is false.</summary>
+        /// <summary>
+        /// Native CubismMath.CardanoAlgorithmForBezier. Used when AreBeziersRestricted is false.
+        /// Matches Native's mixed precision: libm <c>cbrt</c>/<c>acos</c> (double) and
+        /// SqrtF/CosF (float).
+        /// </summary>
         public static float CardanoAlgorithmForBezier(float a, float b, float c, float d)
         {
             if (MathF.Abs(a) < Epsilon)
@@ -166,8 +170,9 @@ namespace Live2D.Cubism.Core
                 float r = MathF.Sqrt(mp33);
                 float t = -q / (2.0f * r);
                 float cosphi = RangeF(t, -1.0f, 1.0f);
-                float phi = MathF.Acos(cosphi);
-                float crtr = MathF.Cbrt(r);
+                // Native CubismMath.cpp uses libm acos/cbrt (double), CosF/SqrtF (float).
+                float phi = (float)Math.Acos(cosphi);
+                float crtr = (float)Math.Cbrt(r);
                 float t1 = 2.0f * crtr;
 
                 float root1 = t1 * MathF.Cos(phi / 3.0f) - ba / 3.0f;
@@ -184,7 +189,7 @@ namespace Live2D.Cubism.Core
 
             if (discriminant == 0.0f)
             {
-                float u1 = q2 < 0.0f ? MathF.Cbrt(-q2) : -MathF.Cbrt(q2);
+                float u1 = q2 < 0.0f ? (float)Math.Cbrt(-q2) : -(float)Math.Cbrt(q2);
                 float root1 = 2.0f * u1 - ba / 3.0f;
                 if (MathF.Abs(root1 - center) < threshold)
                     return RangeF(root1, 0.0f, 1.0f);
@@ -194,8 +199,8 @@ namespace Live2D.Cubism.Core
             }
 
             float sd = MathF.Sqrt(discriminant);
-            float u = MathF.Cbrt(sd - q2);
-            float v = MathF.Cbrt(sd + q2);
+            float u = (float)Math.Cbrt(sd - q2);
+            float v = (float)Math.Cbrt(sd + q2);
             return RangeF(u - v - ba / 3.0f, 0.0f, 1.0f);
         }
     }
