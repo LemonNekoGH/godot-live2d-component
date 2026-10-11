@@ -201,7 +201,7 @@ namespace Live2D.Cubism.Rendering
             if (src == null) return;
 
             src.FillMaskArrays(out var pos, out var uvs, out var indices, out var colors);
-            if (pos.Count == 0 || indices.Count < 3)
+            if (pos.Length == 0 || indices.Length < 3)
             {
                 mesh.Visible = false;
                 return;

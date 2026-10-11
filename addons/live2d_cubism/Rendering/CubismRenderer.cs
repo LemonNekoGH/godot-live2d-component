@@ -253,14 +253,14 @@ void fragment() {
         /// Rebuilds the mesh used when this drawable is a clipping-mask source.
         /// Same geometry as the main mesh; the caller assigns the mask-write shader.
         /// </summary>
-        public void FillMaskArrays(out PackedVector2Array positions, out PackedVector2Array uvs, out PackedInt32Array indices, out PackedColorArray colors)
+        public void FillMaskArrays(out Vector2[] positions, out Vector2[] uvs, out int[] indices, out Color[] colors)
         {
-            BuildPackedArrays(out positions, out uvs, out indices, out colors);
+            BuildMeshArrays(out positions, out uvs, out indices, out colors);
         }
 
         private void RebuildMesh()
         {
-            if (!BuildPackedArrays(out var packedPos, out var packedUv, out var packedIdx, out var packedCol))
+            if (!BuildMeshArrays(out var packedPos, out var packedUv, out var packedIdx, out var packedCol))
             {
                 Visible = false;
                 return;
@@ -282,16 +282,16 @@ void fragment() {
             Mesh = _arrayMesh;
         }
 
-        private bool BuildPackedArrays(
-            out PackedVector2Array packedPos,
-            out PackedVector2Array packedUv,
-            out PackedInt32Array packedIdx,
-            out PackedColorArray packedCol)
+        private bool BuildMeshArrays(
+            out Vector2[] packedPos,
+            out Vector2[] packedUv,
+            out int[] packedIdx,
+            out Color[] packedCol)
         {
-            packedPos = new PackedVector2Array();
-            packedUv = new PackedVector2Array();
-            packedIdx = new PackedInt32Array();
-            packedCol = new PackedColorArray();
+            packedPos = System.Array.Empty<Vector2>();
+            packedUv = System.Array.Empty<Vector2>();
+            packedIdx = System.Array.Empty<int>();
+            packedCol = System.Array.Empty<Color>();
 
             var positions = _model.GetDrawableVertexPositions(_drawableIndex);
             var uvs = _model.GetDrawableVertexUvs(_drawableIndex);
@@ -308,9 +308,9 @@ void fragment() {
             var scale = ppu > 0 ? ppu : 1f;
             var opacity = drawable.Opacity;
 
-            packedPos.Resize(positions.Length);
-            packedUv.Resize(positions.Length);
-            packedCol.Resize(positions.Length);
+            packedPos = new Vector2[positions.Length];
+            packedUv = new Vector2[positions.Length];
+            packedCol = new Color[positions.Length];
             for (int i = 0; i < positions.Length; i++)
             {
                 packedPos[i] = positions[i] * scale;
@@ -318,7 +318,7 @@ void fragment() {
                 packedCol[i] = new Color(1f, 1f, 1f, opacity);
             }
 
-            packedIdx.Resize(indices.Length);
+            packedIdx = new int[indices.Length];
             for (int i = 0; i < indices.Length; i++)
                 packedIdx[i] = indices[i];
 
