@@ -234,7 +234,7 @@ Godot dump mode: `CUBISM_DUMP_DIR=/tmp/out godot --path . --headless demo/scenes
 python3 tests/test_motion_golden.py
 ```
 
-Pass/fail uses parameter columns for `t < Duration` at `1e-4`. Native V2 loop wrap (`Duration+1/fps` + CorrectEndPoint) is a documented Native≠Unity difference and is excluded; this port follows Unity. Official Native `DoUpdateParameters` looks PartOpacity ids up as parameters (usually a no-op); the harness patches that write to parts so the CSV matches Unity / this port.
+Pass/fail uses parameter columns for `t < Duration` at `2e-3` (Cardano matches Native on identical coefficients; leftover ulps are CubismJson vs Newtonsoft on near-degenerate unrestricted beziers). Native V2 loop wrap (`Duration+1/fps` + CorrectEndPoint) is a documented Native≠Unity difference and is excluded; this port follows Unity. Official Native `DoUpdateParameters` looks PartOpacity ids up as parameters (usually a no-op); the harness patches that write to parts so the CSV matches Unity / this port.
 
 Set `CUBISM_NATIVE_SDK` if the SDK is not at `/tmp/cubism_native/CubismSdkForNative-5-r.5`.
 
