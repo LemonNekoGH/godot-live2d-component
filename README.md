@@ -219,6 +219,24 @@ Math functions are verified via golden-value tests that compare output against t
 - `CubismPhysicsMath.Normalize`
 - `CubismParameter.GetParameterRepeatValue` / `GetParameterClampValue`
 - `CubismMotion3Json.EvaluateCurve` (linear, stepped, inverse-stepped, bezier segments)
+- Unity-style motion loop wrap (`time >= Duration`) and PartOpacity writes
+
+### Frame-by-frame motion vs Native SDK
+
+`tools/native_motion_dump` is a headless Cubism Native harness (Framework + Core, no renderer). It loads Hiyori, plays each Idle / TapBody motion3 with the same fade / priority / loop as the Godot demo, steps `dt=1/60` for 10 s, and writes parameter + part-opacity CSVs.
+
+Godot dump mode: `CUBISM_DUMP_DIR=/tmp/out godot --path . --headless demo/scenes/demo.tscn` (blink / breath / physics / pose off).
+
+```bash
+# Generate dumps at test time (CSVs are not committed) and diff them
+./tools/dump_motions.sh /tmp/cubism-motion-dumps
+# or
+python3 tests/test_motion_golden.py
+```
+
+Pass/fail uses parameter columns for `t < Duration` at `1e-4`. Native V2 loop wrap (`Duration+1/fps` + CorrectEndPoint) is a documented Native≠Unity difference and is excluded; this port follows Unity. Official Native `DoUpdateParameters` looks PartOpacity ids up as parameters (usually a no-op); the harness patches that write to parts so the CSV matches Unity / this port.
+
+Set `CUBISM_NATIVE_SDK` if the SDK is not at `/tmp/cubism_native/CubismSdkForNative-5-r.5`.
 
 ## License
 

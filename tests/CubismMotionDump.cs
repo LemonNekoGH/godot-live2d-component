@@ -80,7 +80,7 @@ namespace Live2D.Cubism.Tests
                 p.Value = p.DefaultValue;
             if (model.Parts == null) return;
             foreach (var part in model.Parts)
-                part.Opacity = 1f;
+                part.Opacity = part.DefaultOpacity;
         }
 
         static void WriteHeader(StreamWriter writer, CubismModel model)

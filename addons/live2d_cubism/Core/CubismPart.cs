@@ -18,6 +18,7 @@ namespace Live2D.Cubism.Core
         public string Id { get; internal set; }
         public int UnmanagedIndex { get; internal set; } = -1;
         public float Opacity = 1f;
+        public float DefaultOpacity { get; internal set; } = 1f;
         public int ParentPartIndex { get; internal set; } = -1;
 
         internal void Initialize(CubismUnmanagedParts unmanaged, int index)
@@ -25,6 +26,7 @@ namespace Live2D.Cubism.Core
             UnmanagedIndex = index;
             Id = unmanaged.Ids[index];
             Opacity = unmanaged.GetOpacity(index);
+            DefaultOpacity = Opacity;
             ParentPartIndex = unmanaged.GetParentPartIndex(index);
         }
     }

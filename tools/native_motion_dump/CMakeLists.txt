@@ -41,7 +41,7 @@ set(FW_SRCS
   ${FW}/Rendering/csmBlendMode.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/renderer_stub.cpp
   ${FW}/Motion/ACubismMotion.cpp
-  ${FW}/Motion/CubismMotion.cpp
+  ${CMAKE_CURRENT_BINARY_DIR}/CubismMotion_unity_parts.cpp
   ${FW}/Motion/CubismMotionJson.cpp
   ${FW}/Motion/CubismMotionManager.cpp
   ${FW}/Motion/CubismMotionQueueEntry.cpp
@@ -51,6 +51,16 @@ set(FW_SRCS
   ${FW}/Utils/CubismDebug.cpp
   ${FW}/Utils/CubismJson.cpp
   ${FW}/Utils/CubismString.cpp
+)
+
+add_custom_command(
+  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/CubismMotion_unity_parts.cpp
+  COMMAND ${CMAKE_COMMAND} -E env python3
+          ${CMAKE_CURRENT_SOURCE_DIR}/patch_part_opacity.py
+          ${FW}/Motion/CubismMotion.cpp
+          ${CMAKE_CURRENT_BINARY_DIR}/CubismMotion_unity_parts.cpp
+  DEPENDS ${FW}/Motion/CubismMotion.cpp ${CMAKE_CURRENT_SOURCE_DIR}/patch_part_opacity.py
+  COMMENT "Patch CubismMotion PartOpacity to write parts (Unity)"
 )
 
 add_library(FrameworkHeadless STATIC ${FW_SRCS})

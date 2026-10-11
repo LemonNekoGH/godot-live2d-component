@@ -152,18 +152,16 @@ namespace Live2D.Cubism.Framework.Motion
             if (timeOffset < 0f) timeOffset = 0f;
 
             var duration = pm.Motion.Meta?.Duration ?? 0f;
-            var fps = pm.Motion.Meta?.Fps > 0f ? pm.Motion.Meta.Fps : 30f;
             var areRestricted = pm.Motion.Meta?.AreBeziersRestricted ?? false;
             var isLoop = pm.IsLooping;
-            var evalDuration = duration;
-            if (isLoop)
-                evalDuration += 1.0f / fps;
 
+            // Unity CubismFadeStateObserver / AnimationClip wrap at MotionLength.
+            // Native V2 instead uses duration+1/fps plus CorrectEndPoint; follow Unity.
             var time = timeOffset;
-            if (isLoop && evalDuration > 0f)
+            if (isLoop && duration > 0f)
             {
-                while (time > evalDuration)
-                    time -= evalDuration;
+                while (time >= duration)
+                    time -= duration;
             }
 
             pm.CurrentTime = time;
@@ -259,6 +257,9 @@ namespace Live2D.Cubism.Framework.Motion
                     continue;
                 var part = FindPart(curve.Id);
                 if (part == null) continue;
+                // Unity AnimationClip writes PartOpacity onto CubismPart (single-motion
+                // FadeController is a no-op when only one clip is playing). Official Native
+                // looks the id up with GetParameterIndex and usually skips the curve.
                 part.Opacity = CubismMotion3Json.EvaluateCurve(curve.Segments, time, areRestricted);
             }
 

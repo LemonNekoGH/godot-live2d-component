@@ -6,6 +6,10 @@
 // Native assigns StartTime on the first UpdateMotion; we prime with dt=0 so the
 // first dumped frame is t=1/60, same as Godot MotionController.Update(dt).
 // Loop fade-in is disabled (Unity CubismFadeController fades in once).
+//
+// PartOpacity: official CubismMotion uses GetParameterIndex (part ids miss).
+// The harness compiles a patched copy that writes GetPartIndex / SetPartOpacity
+// so the CSV matches Unity AnimationClip bindings. Loop wrap is still Native V2.
 
 #include <CubismFramework.hpp>
 #include <CubismModelSettingJson.hpp>
@@ -23,6 +27,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
+#include <iomanip>
 #include <string>
 #include <vector>
 
@@ -74,12 +79,12 @@ std::string Join(const std::string& dir, const std::string& file)
     return dir + "/" + file;
 }
 
-void ResetModel(CubismModel* model)
+void ResetModel(CubismModel* model, const std::vector<float>& defaultParts)
 {
     for (csmInt32 i = 0; i < model->GetParameterCount(); ++i)
         model->SetParameterValue(i, model->GetParameterDefaultValue(i));
     for (csmInt32 i = 0; i < model->GetPartCount(); ++i)
-        model->SetPartOpacity(i, 1.0f);
+        model->SetPartOpacity(i, defaultParts[static_cast<size_t>(i)]);
     model->SaveParameters();
 }
 
@@ -95,6 +100,7 @@ void WriteHeader(std::ofstream& out, CubismModel* model)
 
 void WriteRow(std::ofstream& out, int frame, float time, CubismModel* model)
 {
+    out << std::setprecision(9);
     out << frame << "," << time;
     for (csmInt32 i = 0; i < model->GetParameterCount(); ++i)
         out << "," << model->GetParameterValue(i);
@@ -171,6 +177,9 @@ int main(int argc, char** argv)
     }
     CubismMoc* moc = CubismMoc::Create(mocBuf.data(), static_cast<csmSizeInt>(mocBuf.size()));
     CubismModel* model = moc->CreateModel();
+    std::vector<float> defaultParts(static_cast<size_t>(model->GetPartCount()));
+    for (csmInt32 i = 0; i < model->GetPartCount(); ++i)
+        defaultParts[static_cast<size_t>(i)] = model->GetPartOpacity(i);
     model->SaveParameters();
 
     csmVector<CubismIdHandle> eyeBlinkIds;
@@ -217,7 +226,7 @@ int main(int argc, char** argv)
         motion->SetLoopFadeIn(false);
         motion->SetEffectIds(eyeBlinkIds, lipSyncIds);
 
-        ResetModel(model);
+        ResetModel(model, defaultParts);
         CubismMotionManager manager;
         manager.StartMotionPriority(motion, true, 2);
 

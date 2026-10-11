@@ -45,6 +45,7 @@ namespace Live2D.Cubism.Tests
             allPassed &= TestNativeBezierAndFade();
             allPassed &= TestHiyoriMotionCurvesVsNative();
             allPassed &= TestColorBlendVsNative();
+            allPassed &= TestUnityLoopWrapAndPartOpacity();
 
             if (allPassed)
                 GD.Print("[TESTS] All golden-value math tests PASSED");
@@ -695,6 +696,58 @@ namespace Live2D.Cubism.Tests
             ok &= AssertClose(CubismColorBlend.ColorDodge(0.5f, 0f), 0f, "ColorDodge dest=0");
 
             GD.Print(ok ? "  PASS ColorBlend formulas" : "  FAIL ColorBlend formulas");
+            return ok;
+        }
+
+        static bool TestUnityLoopWrapAndPartOpacity()
+        {
+            GD.Print("[TEST] Unity loop wrap + PartOpacity");
+            bool ok = true;
+
+            var param = new CubismParameter
+            {
+                Id = "P",
+                Value = 0f,
+                DefaultValue = 0f,
+                MinimumValue = -100f,
+                MaximumValue = 100f
+            };
+            var part = new CubismPart { Id = "PartArmB", Opacity = 1f, DefaultOpacity = 0.25f };
+            var ctrl = new CubismMotionController();
+            ctrl.SetModel(new[] { param }, new[] { part });
+            var motion = new CubismMotion3Json
+            {
+                Meta = new CubismMotion3Json.SerializableMeta
+                {
+                    Duration = 0.1f, Fps = 30f, FadeInTime = 0f, FadeOutTime = 0f
+                },
+                Curves = new[]
+                {
+                    new CubismMotion3Json.SerializableCurve
+                    {
+                        Target = "Parameter", Id = "P", FadeInTime = -1f, FadeOutTime = -1f,
+                        Segments = new[] { 0f, 0f, 0, 0.1f, 10f }
+                    },
+                    new CubismMotion3Json.SerializableCurve
+                    {
+                        Target = "PartOpacity", Id = "PartArmB", FadeInTime = -1f, FadeOutTime = -1f,
+                        Segments = new[] { 0f, 0.4f, 0, 0.1f, 0.4f }
+                    }
+                }
+            };
+
+            var pm = ctrl.PlayMotion(motion, CubismMotionPriority.PriorityNormal, isLooping: true);
+            const float dt = 1f / 60f;
+            for (int i = 0; i < 6; i++)
+                ctrl.Update(dt);
+
+            ok &= AssertClose(pm.CurrentTime, 0f, "Unity wrap at Duration (not Duration+1/fps)");
+            ok &= AssertClose(param.Value, 0f, "parameter restarts at first key");
+            ok &= AssertClose(part.Opacity, 0.4f, "PartOpacity writes CubismPart");
+
+            part.Opacity = 1f;
+            part.Opacity = part.DefaultOpacity;
+            ok &= AssertClose(part.Opacity, 0.25f, "dump reset uses Core DefaultOpacity");
             return ok;
         }
 
