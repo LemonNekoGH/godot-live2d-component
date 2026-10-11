@@ -92,13 +92,54 @@ namespace Live2D.Cubism.Rendering
                 Name = Model.Name;
 
                 _textures = ModelJson.LoadTextures();
+                GD.Print($"  Textures loaded: {_textures?.Length ?? 0}");
+                if (_textures != null)
+                {
+                    for (int t = 0; t < _textures.Length; t++)
+                        GD.Print($"    Tex[{t}]: {(_textures[t] != null ? $"{_textures[t].GetWidth()}x{_textures[t].GetHeight()}" : "NULL")}");
+                }
                 InitializeRenderers();
                 InitializeFramework();
                 _initialized = true;
 
+                // Force initial Core update so drawables have geometry
+                Model.UpdateModel();
+
                 GD.Print($"[CubismModelNode] Loaded model: {Model.Name} " +
                          $"({Model.Parameters.Length} params, {Model.Parts.Length} parts, " +
                          $"{Model.Drawables.Length} drawables)");
+
+                // Debug: print canvas info and sample drawable data
+                GD.Print($"  Canvas: {Model.CanvasSizeInPixels}, Origin: {Model.CanvasOriginInPixels}, PPU: {Model.PixelsPerUnit}");
+                int visCount = 0;
+                for (int d = 0; d < Model.Drawables.Length; d++)
+                {
+                    if (Model.Drawables[d].IsVisible && Model.Drawables[d].Opacity > 0.001f)
+                    {
+                        visCount++;
+                        if (visCount <= 3)
+                        {
+                            var verts = Model.GetDrawableVertexPositions(d);
+                            var indices = Model.GetDrawableIndices(d);
+                            if (verts != null && verts.Length > 0)
+                            {
+                                float minX = float.MaxValue, maxX = float.MinValue;
+                                float minY = float.MaxValue, maxY = float.MinValue;
+                                foreach (var v in verts)
+                                {
+                                    if (v.X < minX) minX = v.X; if (v.X > maxX) maxX = v.X;
+                                    if (v.Y < minY) minY = v.Y; if (v.Y > maxY) maxY = v.Y;
+                                }
+                                var scale = Model.PixelsPerUnit > 0 ? Model.PixelsPerUnit : 1f;
+                                GD.Print($"  [{d}] '{Model.Drawables[d].Id}': " +
+                                         $"verts={verts.Length}, idx={indices?.Length ?? 0}, " +
+                                         $"raw=({minX:F2},{minY:F2})-({maxX:F2},{maxY:F2}), " +
+                                         $"scaled=({minX*scale:F1},{minY*scale:F1})-({maxX*scale:F1},{maxY*scale:F1})");
+                            }
+                        }
+                    }
+                }
+                GD.Print($"  Visible drawables: {visCount}/{Model.Drawables.Length}");
 
                 return true;
             }

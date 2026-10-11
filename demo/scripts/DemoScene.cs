@@ -85,12 +85,23 @@ namespace Live2D.Cubism.Demo
         private void LoadLive2DModel(string path)
         {
             _modelNode = new CubismModelNode();
-            _modelNode.Position = GetViewportRect().Size / 2;
             AddChild(_modelNode);
 
             if (_modelNode.LoadModel(path))
             {
                 GD.Print($"Model loaded successfully: {path}");
+
+                // Scale model to fit viewport
+                var viewSize = GetViewportRect().Size;
+                var canvasH = _modelNode.Model.CanvasSizeInPixels.Y;
+                if (canvasH > 0)
+                {
+                    var fitScale = (viewSize.Y * 0.9f) / canvasH;
+                    _modelNode.Scale = new Vector2(fitScale, fitScale);
+                }
+
+                // Center model on screen
+                _modelNode.Position = new Vector2(viewSize.X / 2f, viewSize.Y / 2f);
 
                 // Start idle motion if available
                 _modelNode.PlayMotionFromGroup("Idle", 0, CubismMotionPriority.PriorityIdle, true);

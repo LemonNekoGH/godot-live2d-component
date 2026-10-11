@@ -53,8 +53,9 @@ namespace Live2D.Cubism.Rendering
             _normalShader = new Shader();
             _normalShader.Code = @"
 shader_type canvas_item;
+render_mode blend_mix;
 
-uniform sampler2D main_texture : source_color;
+uniform sampler2D main_texture : source_color, filter_linear_mipmap;
 uniform vec4 multiply_color : source_color = vec4(1.0, 1.0, 1.0, 1.0);
 uniform vec4 screen_color : source_color = vec4(0.0, 0.0, 0.0, 0.0);
 uniform float drawable_opacity : hint_range(0.0, 1.0) = 1.0;
@@ -165,8 +166,14 @@ void fragment() {
                 return;
             }
 
+            // Cubism Core positions are in model space where 1 unit = PixelsPerUnit pixels.
+            // In Unity, the camera orthographic size handles the scaling.
+            // In Godot 2D, we multiply by PixelsPerUnit to get pixel coordinates,
+            // then optionally divide by a display scale for fitting on screen.
+            // A typical Cubism model uses PPU matching canvas width, so model coords
+            // span roughly [-0.5, 0.5]. Multiplying by PPU gives pixel coords.
             var ppu = _model.PixelsPerUnit;
-            var scale = ppu > 0 ? (100f / ppu) : 1f;
+            var scale = ppu > 0 ? ppu : 1f;
 
             var scaledPositions = new Vector2[positions.Length];
             for (int i = 0; i < positions.Length; i++)
@@ -200,19 +207,15 @@ void fragment() {
 
             var drawable = _model.Drawables[_drawableIndex];
 
+            // Set blend mode via CanvasItem blend_mode property
+            // Shader material remains as the rendering material
             if (drawable.IsAdditive)
             {
-                var mat = new CanvasItemMaterial();
-                mat.BlendMode = CanvasItemMaterial.BlendModeEnum.Add;
-                Material = mat;
-                // Re-create shader material on top
-                _material.NextPass = null;
+                _material.SetShaderParameter("blend_mode", 1);
             }
             else if (drawable.IsMultiplicative)
             {
-                var mat = new CanvasItemMaterial();
-                mat.BlendMode = CanvasItemMaterial.BlendModeEnum.Mul;
-                Material = mat;
+                _material.SetShaderParameter("blend_mode", 2);
             }
         }
     }
