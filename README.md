@@ -131,6 +131,38 @@ Demo modes (optional environment variables):
 
 Keys in the demo: `1`/`2`/`3` start expressions, `Space` plays TapBody, `F` toggles framework updates, `S` saves a screenshot.
 
+### 6. Record a feature (Movie Maker)
+
+Do **not** use `ffmpeg` `x11grab` for feature videos. Godot's Movie Maker advances the engine on a fixed clock, so the file is 60 fps even when the software renderer is slow.
+
+```bash
+# One mode → H.264 mp4 (default 8s @ 60 fps, 480 frames)
+./tools/record_feature.sh motion
+
+# Explicit output path
+./tools/record_feature.sh static /tmp/feature-static-render.mp4
+
+# Every CUBISM_DEMO_MODE
+./tools/record_feature.sh all /opt/cursor/artifacts
+```
+
+The script runs:
+
+```bash
+godot --path . --write-movie /tmp/mode.avi --fixed-fps 60 --quit-after 480 --disable-vsync demo/scenes/demo.tscn
+```
+
+`--quit-after` is a **frame count** (8 × 60 = 480). It then transcodes the AVI to H.264 (`libx264`, yuv420p, no audio) and keeps the mp4 under 15 MB.
+
+| Variable | Purpose |
+|----------|---------|
+| `CUBISM_RECORD_SECONDS` | Simulated duration (default `8`) |
+| `CUBISM_RECORD_FPS` | Movie fps (default `60`) |
+| `CUBISM_RECORD_BG` | Background (`green` by default) |
+| `GODOT` | Godot binary (default `godot`) |
+
+Mode → artifact name: `static` → `feature-static-render.mp4`, `motion` → `feature-motion-idle.mp4`, `expression` → `feature-expression-smile.mp4`, `blink` → `feature-eye-blink.mp4`, `physics` → `feature-physics.mp4`, `pose` → `feature-pose-tapbody.mp4`, `lipsync` → `feature-lipsync.mp4`, `lookat` → `feature-lookat.mp4`.
+
 ## Usage
 
 ### Loading a Model

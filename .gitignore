@@ -18,6 +18,10 @@ native/*.dylib
 # Live2D sample models (licensed separately)
 demo/models/
 
+# Local Movie Maker outputs (commit the script, not the videos)
+recordings/
+*.avi
+
 # OS
 .DS_Store
 Thumbs.db
