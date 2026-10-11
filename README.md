@@ -4,7 +4,7 @@ A faithful port of Live2D's [Cubism SDK for Unity (CubismUnityComponents)](https
 
 ## Overview
 
-This project ports the open-source components of the Cubism 5 SDK for Unity R5 to Godot 4.4.1 (.NET build), targeting **.NET 10 (`net10.0`)**. The port mirrors the Unity implementation's logic, math, update order, and observable behavior as closely as possible.
+This project ports the open-source components of the Cubism 5 SDK for Unity R5 to Godot 4.7.2 (.NET build), targeting **.NET 10 (`net10.0`)**. The port mirrors the Unity implementation's logic, math, update order, and observable behavior as closely as possible.
 
 > **Godot version:** This project uses **Godot 4.7.2** (.NET / Mono build, released 2026-08-18) with **.NET 10 SDK** (`net10.0` target). The GodotSharp 4.7.2 NuGet package ships with `net8.0` assemblies, but the `LatestMajor` roll-forward policy in Godot's runtime config allows it to run on the .NET 10 runtime.
 
@@ -118,6 +118,18 @@ Open the project in Godot 4.7.2 (.NET) and run the demo scene, or:
 export LD_LIBRARY_PATH="$(pwd)/native:$LD_LIBRARY_PATH"
 godot --path . demo/scenes/demo.tscn
 ```
+
+Demo modes (optional environment variables):
+
+| Variable | Purpose |
+|----------|---------|
+| `CUBISM_DEMO_MODE` | `static` (default), `motion`, `expression`, `blink`, `physics`, `pose`, `lipsync`, `lookat`, `all` |
+| `CUBISM_SCREENSHOT` | Write a PNG after the first rendered frames |
+| `CUBISM_QUIT_AFTER` | Quit after N seconds |
+| `CUBISM_BG` | `green`, `white`, or `gray` |
+| `CUBISM_HUD` | Set to `0` to hide the overlay |
+
+Keys in the demo: `1`/`2`/`3` start expressions, `Space` plays TapBody, `F` toggles framework updates, `S` saves a screenshot.
 
 ## Usage
 
