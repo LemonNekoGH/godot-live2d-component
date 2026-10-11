@@ -106,6 +106,7 @@ record_one() {
   export CUBISM_BG="$BG"
   unset CUBISM_SCREENSHOT || true
   unset CUBISM_QUIT_AFTER || true
+  unset CUBISM_DUMP_DIR || true
 
   # --quit-after is a frame count when used with --write-movie.
   # --fixed-fps is forced by Movie Maker; we set it explicitly anyway.
