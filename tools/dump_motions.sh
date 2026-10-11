@@ -20,10 +20,21 @@ if [[ ! -d "$SDK" ]]; then
 fi
 
 echo "=== Build native_motion_dump ==="
+if [[ "$(uname)" == "Darwin" ]]; then
+  CXX_COMPILER="$(xcrun -f clang++)"
+  BUILD_JOBS="$(sysctl -n hw.logicalcpu)"
+  PLATFORM_ARGS=(-DCMAKE_OSX_SYSROOT="$(xcrun --sdk macosx --show-sdk-path)")
+else
+  CXX_COMPILER="/usr/bin/g++"
+  BUILD_JOBS="$(nproc)"
+  PLATFORM_ARGS=()
+fi
 cmake -S "$ROOT/tools/native_motion_dump" -B "$ROOT/tools/native_motion_dump/build" \
-  -DCMAKE_CXX_COMPILER=/usr/bin/g++ \
+  --fresh \
+  -DCMAKE_CXX_COMPILER="$CXX_COMPILER" \
+  "${PLATFORM_ARGS[@]}" \
   -DCUBISM_NATIVE_SDK="$SDK"
-cmake --build "$ROOT/tools/native_motion_dump/build" -j"$(nproc)"
+cmake --build "$ROOT/tools/native_motion_dump/build" -j"$BUILD_JOBS"
 DUMP_BIN="$ROOT/tools/native_motion_dump/build/native_motion_dump"
 
 echo "=== Native dump ==="
@@ -35,7 +46,7 @@ export LD_LIBRARY_PATH="$ROOT/native:${LD_LIBRARY_PATH:-}"
 export CUBISM_DUMP_DIR="$GODOT_OUT"
 export CUBISM_HUD=0
 unset CUBISM_DEMO_MODE || true
-godot --path "$ROOT" --headless --quit-after 60 demo/scenes/demo.tscn
+"${GODOT:-godot}" --path "$ROOT" --headless --quit-after 60 demo/scenes/demo.tscn
 
 echo "=== Diff (params, t < Duration; Native V2 loop gap excluded) ==="
 echo "(1e-4 informational; pass/fail uses 2e-3 for CubismJson vs Newtonsoft ulps on degenerate beziers)"

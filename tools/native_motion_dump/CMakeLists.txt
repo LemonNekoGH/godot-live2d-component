@@ -16,8 +16,19 @@ set(CORE_PATH ${CUBISM_NATIVE_SDK}/Core)
 set(FW ${CUBISM_NATIVE_SDK}/Framework/src)
 
 add_library(Live2DCubismCore STATIC IMPORTED)
+if(APPLE)
+  if(CMAKE_SYSTEM_PROCESSOR MATCHES "arm64|aarch64")
+    set(CORE_LIBRARY ${CORE_PATH}/lib/macos/arm64/libLive2DCubismCore.a)
+  else()
+    set(CORE_LIBRARY ${CORE_PATH}/lib/macos/x86_64/libLive2DCubismCore.a)
+  endif()
+  set(CUBISM_TARGET CSM_TARGET_MAC_GL)
+else()
+  set(CORE_LIBRARY ${CORE_PATH}/lib/linux/x86_64/libLive2DCubismCore.a)
+  set(CUBISM_TARGET CSM_TARGET_LINUX_GL)
+endif()
 set_target_properties(Live2DCubismCore PROPERTIES
-  IMPORTED_LOCATION ${CORE_PATH}/lib/linux/x86_64/libLive2DCubismCore.a
+  IMPORTED_LOCATION ${CORE_LIBRARY}
   INTERFACE_INCLUDE_DIRECTORIES ${CORE_PATH}/include
 )
 
@@ -65,9 +76,9 @@ add_custom_command(
 
 add_library(FrameworkHeadless STATIC ${FW_SRCS})
 target_include_directories(FrameworkHeadless PUBLIC ${FW} ${FW}/Motion ${CORE_PATH}/include)
-target_compile_definitions(FrameworkHeadless PUBLIC CSM_TARGET_LINUX_GL)
+target_compile_definitions(FrameworkHeadless PUBLIC ${CUBISM_TARGET})
 target_link_libraries(FrameworkHeadless PUBLIC Live2DCubismCore)
 
 add_executable(native_motion_dump main.cpp)
 target_link_libraries(native_motion_dump PRIVATE FrameworkHeadless)
-target_compile_definitions(native_motion_dump PRIVATE CSM_TARGET_LINUX_GL)
+target_compile_definitions(native_motion_dump PRIVATE ${CUBISM_TARGET})

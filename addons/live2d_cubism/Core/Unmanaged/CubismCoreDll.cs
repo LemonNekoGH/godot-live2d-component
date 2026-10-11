@@ -6,6 +6,8 @@
  */
 
 using System;
+using System.IO;
+using System.Reflection;
 using System.Runtime.InteropServices;
 
 namespace Live2D.Cubism.Core.Unmanaged
@@ -13,6 +15,38 @@ namespace Live2D.Cubism.Core.Unmanaged
     public static class CubismCoreDll
     {
         public const string DllName = "Live2DCubismCore";
+
+        static CubismCoreDll()
+        {
+            NativeLibrary.SetDllImportResolver(typeof(CubismCoreDll).Assembly, ResolveLibrary);
+        }
+
+        private static IntPtr ResolveLibrary(string libraryName, Assembly assembly, DllImportSearchPath? searchPath)
+        {
+            if (libraryName != DllName)
+                return IntPtr.Zero;
+
+            string fileName = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+                ? "Live2DCubismCore.dll"
+                : RuntimeInformation.IsOSPlatform(OSPlatform.OSX)
+                    ? "libLive2DCubismCore.dylib"
+                    : "libLive2DCubismCore.so";
+
+            string[] candidates =
+            {
+                Path.Combine(AppContext.BaseDirectory, fileName),
+                Path.Combine(Environment.CurrentDirectory, "native", fileName),
+                Path.Combine(AppContext.BaseDirectory, "native", fileName),
+            };
+
+            foreach (string candidate in candidates)
+            {
+                if (File.Exists(candidate) && NativeLibrary.TryLoad(candidate, out IntPtr handle))
+                    return handle;
+            }
+
+            return IntPtr.Zero;
+        }
 
         public const int AlignofMoc = 64;
         public const int AlignofModel = 16;
