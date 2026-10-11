@@ -333,7 +333,7 @@ namespace Live2D.Cubism.Rendering
             };
         }
 
-        private bool _firstFrameDone;
+        public bool EnableFrameworkUpdate { get; set; } = false;
 
         public override void _Process(double delta)
         {
@@ -342,14 +342,17 @@ namespace Live2D.Cubism.Rendering
             var dt = (float)delta;
 
             // Framework update in execution order (mirrors Unity CubismUpdateController)
-            MotionController?.Update(dt);
-            PoseController?.Update(dt);
-            ExpressionController?.Update(dt);
-            EyeBlinkController?.Update(dt);
-            MouthController?.Update(dt);
-            HarmonicMotionController?.Update(dt);
-            LookController?.Update(dt);
-            PhysicsRig?.Evaluate(dt);
+            if (EnableFrameworkUpdate)
+            {
+                MotionController?.Update(dt);
+                PoseController?.Update(dt);
+                ExpressionController?.Update(dt);
+                EyeBlinkController?.Update(dt);
+                MouthController?.Update(dt);
+                HarmonicMotionController?.Update(dt);
+                LookController?.Update(dt);
+                PhysicsRig?.Evaluate(dt);
+            }
 
             // 9. Core update (writes params/parts → Core → reads back drawables)
             Model.UpdateModel();
