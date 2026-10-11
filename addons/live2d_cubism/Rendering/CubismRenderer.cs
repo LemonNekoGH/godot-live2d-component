@@ -44,10 +44,16 @@ namespace Live2D.Cubism.Rendering
         private bool _useMask;
         private bool _invertMask;
         private bool _isHitArea;
+        public int ColorBlendOverride { get; set; } = -1;
 
         private static Shader _normalShader;
         private static Shader _additiveShader;
         private static Shader _multiplyShader;
+        private static Shader _extendedShader;
+        private static Shader _extendedCullShader;
+        private static Shader _extendedMaskShader;
+        private static Shader _extendedMaskInvertShader;
+        private int _appliedBlend = int.MinValue;
         private static Shader _maskNormalShader;
         private static Shader _maskAdditiveShader;
         private static Shader _maskMultiplyShader;
@@ -128,7 +134,15 @@ void fragment() {{
         private static Shader GetShader(bool additive, bool multiplicative, bool cullBack, bool masked, bool invertMask, int colorBlend)
         {
             if (colorBlend > CubismCoreDll.ColorBlendType_MultiplyCompatible)
-                return BuildExtendedShader(cullBack, masked, invertMask);
+            {
+                if (masked && invertMask)
+                    return _extendedMaskInvertShader ??= BuildExtendedShader(false, true, true);
+                if (masked)
+                    return _extendedMaskShader ??= BuildExtendedShader(false, true, false);
+                return cullBack
+                    ? (_extendedCullShader ??= BuildExtendedShader(true, false, false))
+                    : (_extendedShader ??= BuildExtendedShader(false, false, false));
+            }
 
             if (masked && invertMask)
                 return _maskInvertNormalShader ??= BuildShader("blend_premul_alpha", false, true, true);
@@ -177,7 +191,7 @@ void vertex() { cubism_mask_uv = (VERTEX - cubism_mask_center) * cubism_mask_inv
 
             shader.Code = $@"
 shader_type canvas_item;
-render_mode blend_mix{cull};
+render_mode blend_premul_alpha{cull};
 
 uniform sampler2D cubism_texture : filter_linear_mipmap, repeat_enable;
 uniform sampler2D cubism_screen : hint_screen_texture, filter_linear;
@@ -186,71 +200,81 @@ uniform vec4 cubism_multiply_color = vec4(1.0, 1.0, 1.0, 1.0);
 uniform vec4 cubism_screen_color = vec4(0.0, 0.0, 0.0, 1.0);
 uniform int cubism_color_blend = 0;
 {varyings}
+float ColorBurnCh(float cs, float cd) {{
+    if (abs(cd - 1.0) < 0.000001) return 1.0;
+    if (abs(cs) < 0.000001) return 0.0;
+    return 1.0 - min(1.0, (1.0 - cd) / cs);
+}}
+float ColorDodgeCh(float cs, float cd) {{
+    if (cd <= 0.0) return 0.0;
+    if (cs == 1.0) return 1.0;
+    return min(1.0, cd / (1.0 - cs));
+}}
+float OverlayCh(float cs, float cd) {{
+    return cd < 0.5 ? 2.0 * cs * cd : 1.0 - 2.0 * (1.0 - cs) * (1.0 - cd);
+}}
+float SoftLightCh(float cs, float cd) {{
+    float val1 = cd - (1.0 - 2.0 * cs) * cd * (1.0 - cd);
+    float val2 = cd + (2.0 * cs - 1.0) * cd * ((16.0 * cd - 12.0) * cd + 3.0);
+    float val3 = cd + (2.0 * cs - 1.0) * (sqrt(cd) - cd);
+    if (cs <= 0.5) return val1;
+    if (cd <= 0.25) return val2;
+    return val3;
+}}
+float HardLightCh(float cs, float cd) {{
+    return cs < 0.5 ? 2.0 * cs * cd : 1.0 - 2.0 * (1.0 - cs) * (1.0 - cd);
+}}
+float LinearLightCh(float cs, float cd) {{
+    return cs < 0.5 ? max(0.0, 2.0 * cs + cd - 1.0) : min(1.0, 2.0 * (cs - 0.5) + cd);
+}}
+const float rCoeff = 0.30;
+const float gCoeff = 0.59;
+const float bCoeff = 0.11;
+float Luma(vec3 c) {{ return rCoeff * c.r + gCoeff * c.g + bCoeff * c.b; }}
+vec3 ClipColor(vec3 rgbC) {{
+    float luma = Luma(rgbC);
+    float maxv = max(rgbC.r, max(rgbC.g, rgbC.b));
+    float minv = min(rgbC.r, min(rgbC.g, rgbC.b));
+    vec3 outputColor = rgbC;
+    outputColor = minv < 0.0 ? luma + (outputColor - luma) * luma / (luma - minv) : outputColor;
+    outputColor = maxv > 1.0 ? luma + (outputColor - luma) * (1.0 - luma) / (maxv - luma) : outputColor;
+    return outputColor;
+}}
+vec3 SetLuma(vec3 rgbC, float luma) {{
+    return ClipColor(rgbC + (luma - Luma(rgbC)));
+}}
+vec3 SetSaturation(vec3 rgbC, float saturation) {{
+    float maxv = max(rgbC.r, max(rgbC.g, rgbC.b));
+    float minv = min(rgbC.r, min(rgbC.g, rgbC.b));
+    float medv = rgbC.r + rgbC.g + rgbC.b - maxv - minv;
+    float outputMax = minv < maxv ? saturation : 0.0;
+    float outputMed = minv < maxv ? (medv - minv) * saturation / (maxv - minv) : 0.0;
+    float outputMin = 0.0;
+    if (rgbC.r == maxv)
+        return rgbC.b < rgbC.g ? vec3(outputMax, outputMed, outputMin) : vec3(outputMax, outputMin, outputMed);
+    if (rgbC.g == maxv)
+        return rgbC.r < rgbC.b ? vec3(outputMin, outputMax, outputMed) : vec3(outputMed, outputMax, outputMin);
+    return rgbC.g < rgbC.r ? vec3(outputMed, outputMin, outputMax) : vec3(outputMin, outputMed, outputMax);
+}}
 vec3 ColorBlend(vec3 s, vec3 d, int mode) {{
     if (mode == 3 || mode == 1) return min(s + d, vec3(1.0));
     if (mode == 4) return s + d;
     if (mode == 5) return min(s, d);
     if (mode == 6 || mode == 2) return s * d;
-    if (mode == 7) {{
-        vec3 r;
-        for (int i = 0; i < 3; i++) {{
-            float cs = s[i]; float cd = d[i];
-            if (abs(cd - 1.0) < 0.000001) r[i] = 1.0;
-            else if (abs(cs) < 0.000001) r[i] = 0.0;
-            else r[i] = 1.0 - min(1.0, (1.0 - cd) / cs);
-        }}
-        return r;
-    }}
+    if (mode == 7) return vec3(ColorBurnCh(s.r, d.r), ColorBurnCh(s.g, d.g), ColorBurnCh(s.b, d.b));
     if (mode == 8) return max(vec3(0.0), s + d - 1.0);
     if (mode == 9) return max(s, d);
     if (mode == 10) return s + d - s * d;
-    if (mode == 11) {{
-        vec3 r;
-        for (int i = 0; i < 3; i++) {{
-            float cs = s[i]; float cd = d[i];
-            if (cd <= 0.0) r[i] = 0.0;
-            else if (cs == 1.0) r[i] = 1.0;
-            else r[i] = min(1.0, cd / (1.0 - cs));
-        }}
-        return r;
+    if (mode == 11) return vec3(ColorDodgeCh(s.r, d.r), ColorDodgeCh(s.g, d.g), ColorDodgeCh(s.b, d.b));
+    if (mode == 12) return vec3(OverlayCh(s.r, d.r), OverlayCh(s.g, d.g), OverlayCh(s.b, d.b));
+    if (mode == 13) return vec3(SoftLightCh(s.r, d.r), SoftLightCh(s.g, d.g), SoftLightCh(s.b, d.b));
+    if (mode == 14) return vec3(HardLightCh(s.r, d.r), HardLightCh(s.g, d.g), HardLightCh(s.b, d.b));
+    if (mode == 15) return vec3(LinearLightCh(s.r, d.r), LinearLightCh(s.g, d.g), LinearLightCh(s.b, d.b));
+    if (mode == 16) {{
+        float sat = max(d.r, max(d.g, d.b)) - min(d.r, min(d.g, d.b));
+        return SetLuma(SetSaturation(s, sat), Luma(d));
     }}
-    if (mode == 12) {{
-        vec3 r;
-        for (int i = 0; i < 3; i++) {{
-            float cs = s[i]; float cd = d[i];
-            r[i] = cd < 0.5 ? 2.0 * cs * cd : 1.0 - 2.0 * (1.0 - cs) * (1.0 - cd);
-        }}
-        return r;
-    }}
-    if (mode == 13) {{
-        vec3 r;
-        for (int i = 0; i < 3; i++) {{
-            float cs = s[i]; float cd = d[i];
-            float val1 = cd - (1.0 - 2.0 * cs) * cd * (1.0 - cd);
-            float val2 = cd + (2.0 * cs - 1.0) * cd * ((16.0 * cd - 12.0) * cd + 3.0);
-            float val3 = cd + (2.0 * cs - 1.0) * (sqrt(cd) - cd);
-            if (cs <= 0.5) r[i] = val1;
-            else if (cd <= 0.25) r[i] = val2;
-            else r[i] = val3;
-        }}
-        return r;
-    }}
-    if (mode == 14) {{
-        vec3 r;
-        for (int i = 0; i < 3; i++) {{
-            float cs = s[i]; float cd = d[i];
-            r[i] = cs < 0.5 ? 2.0 * cs * cd : 1.0 - 2.0 * (1.0 - cs) * (1.0 - cd);
-        }}
-        return r;
-    }}
-    if (mode == 15) {{
-        vec3 r;
-        for (int i = 0; i < 3; i++) {{
-            float cs = s[i]; float cd = d[i];
-            r[i] = cs < 0.5 ? max(0.0, 2.0 * cs + cd - 1.0) : min(1.0, 2.0 * (cs - 0.5) + cd);
-        }}
-        return r;
-    }}
+    if (mode == 17) return SetLuma(s, Luma(d));
     return s;
 }}
 
@@ -312,16 +336,18 @@ void fragment() {
         {
             var drawable = _model.Drawables[_drawableIndex];
             var cullBack = !drawable.IsDoubleSided;
-            var shader = GetShader(drawable.IsAdditive, drawable.IsMultiplicative, cullBack, masked, _invertMask, drawable.ColorBlend);
+            var blend = EffectiveColorBlend(drawable);
+            var shader = GetShader(drawable.IsAdditive, drawable.IsMultiplicative, cullBack, masked, _invertMask, blend);
 
             _material = new ShaderMaterial();
             _material.Shader = shader;
             if (_texture != null)
                 _material.SetShaderParameter("cubism_texture", _texture);
             _material.SetShaderParameter("cubism_model_opacity", _modelOpacity);
-            _material.SetShaderParameter("cubism_color_blend", drawable.ColorBlend);
+            _material.SetShaderParameter("cubism_color_blend", blend);
             Material = _material;
             _useMask = masked;
+            _appliedBlend = blend;
         }
 
         public void SetMaskTexture(Texture2D maskTexture, Vector2 maskCenter, float maskScale, bool invertMask)
@@ -349,6 +375,11 @@ void fragment() {
             _modelOpacity = opacity;
         }
 
+        private int EffectiveColorBlend(CubismDrawable drawable)
+        {
+            return ColorBlendOverride >= 0 ? ColorBlendOverride : drawable.ColorBlend;
+        }
+
         /// <summary>
         /// Full per-frame render update. Called after CubismModel.UpdateModel().
         /// Mirrors Unity CubismRenderController.OnDynamicDrawableData flow.
@@ -367,6 +398,12 @@ void fragment() {
 
             if (_material != null)
             {
+                var blend = EffectiveColorBlend(drawable);
+                if (blend != _appliedBlend)
+                {
+                    _appliedBlend = blend;
+                    ApplyMaterial(masked: _useMask);
+                }
                 _material.SetShaderParameter("cubism_multiply_color",
                     new Color(drawable.MultiplyColor.R, drawable.MultiplyColor.G,
                         drawable.MultiplyColor.B, drawable.MultiplyColor.A));
@@ -374,7 +411,7 @@ void fragment() {
                     new Color(drawable.ScreenColor.R, drawable.ScreenColor.G,
                         drawable.ScreenColor.B, drawable.ScreenColor.A));
                 _material.SetShaderParameter("cubism_model_opacity", _modelOpacity);
-                _material.SetShaderParameter("cubism_color_blend", drawable.ColorBlend);
+                _material.SetShaderParameter("cubism_color_blend", blend);
             }
 
             RebuildMesh();

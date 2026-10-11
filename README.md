@@ -58,12 +58,13 @@ Matches Unity's `PreLateUpdate` insertion exactly:
 
 ## Blend Modes
 
-| Unity Blend | Godot Equivalent |
-|-------------|-----------------|
-| Normal      | Default shader   |
-| Additive    | `CanvasItemMaterial.BlendMode.Add` |
-| Multiplicative | `CanvasItemMaterial.BlendMode.Mul` |
-| Masking     | High-precision SubViewport mask (Unity CalcMaskTransform) |
+| Unity / Core | Godot |
+|--------------|-------|
+| Normal | `blend_premul_alpha` (Cubism 4 path) |
+| AddCompatible / MultiplyCompatible | `blend_add` / `blend_mul` |
+| Add, AddGlow, Darken, Multiply, ColorBurn, LinearBurn, Lighten, Screen, ColorDodge, Overlay, SoftLight, HardLight, LinearLight, Hue, Color | Dest-color shader (`hint_screen_texture`), Core type id in `cubism_color_blend` |
+| Offscreen | `CubismOffscreenRenderer` SubViewport blit (Hiyori `OffscreenCount=0`) |
+| CubismTaskableModel | ThreadPool + `ManualResetEventSlim` join before mesh rebuild |
 
 ## Requirements
 
@@ -146,6 +147,14 @@ Do **not** use `ffmpeg` `x11grab` for feature videos. Godot's Movie Maker advanc
 
 # Every CUBISM_DEMO_MODE
 ./tools/record_feature.sh all /opt/cursor/artifacts
+
+# All Hiyori Idle + TapBody motion3 files (10s each)
+./tools/record_feature.sh motions
+
+# Cubism 5 remaining features
+./tools/record_feature.sh blend
+./tools/record_feature.sh offscreen
+./tools/record_feature.sh async
 ```
 
 The script runs:

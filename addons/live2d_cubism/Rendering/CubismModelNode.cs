@@ -365,6 +365,8 @@ namespace Live2D.Cubism.Rendering
 
         public bool EnableFrameworkUpdate { get; set; } = false;
         public bool EnableAsyncUpdate { get; set; } = false;
+        /// <summary>When &gt;= 0, every drawable uses this Core color-blend id (demo / tests).</summary>
+        public int ForceColorBlend { get; set; } = -1;
 
         public override void _Process(double delta)
         {
@@ -440,6 +442,8 @@ namespace Live2D.Cubism.Rendering
                     continue;
                 }
 
+                if (_drawableRenderers[i] != null)
+                    _drawableRenderers[i].ColorBlendOverride = ForceColorBlend;
                 _drawableRenderers[i]?.UpdateRender();
             }
         }

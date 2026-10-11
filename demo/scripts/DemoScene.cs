@@ -43,6 +43,9 @@ namespace Live2D.Cubism.Demo
             _demoMode = OS.GetEnvironment("CUBISM_DEMO_MODE");
             if (string.IsNullOrEmpty(_demoMode))
                 _demoMode = "static";
+            var envModel = OS.GetEnvironment("CUBISM_MODEL");
+            if (!string.IsNullOrEmpty(envModel))
+                ModelPath = envModel;
             _screenshotPath = OS.GetEnvironment("CUBISM_SCREENSHOT");
             var quitStr = OS.GetEnvironment("CUBISM_QUIT_AFTER");
             if (!string.IsNullOrEmpty(quitStr) && float.TryParse(quitStr, out var q))
@@ -131,7 +134,8 @@ namespace Live2D.Cubism.Demo
                 GD.Print($"Model loaded successfully: {path}");
 
                 var viewSize = GetViewportRect().Size;
-                float modelHeight = 3778f;
+                float modelHeight = _modelNode.Model.CanvasSizeInPixels.Y;
+                if (modelHeight < 1f) modelHeight = 3778f;
                 var fitScale = (viewSize.Y * 0.92f) / modelHeight;
                 _modelNode.Scale = new Vector2(fitScale, fitScale);
                 _modelNode.Position = new Vector2(viewSize.X / 2f, viewSize.Y * 0.47f);
@@ -243,6 +247,11 @@ namespace Live2D.Cubism.Demo
                 case "blend":
                     _modelNode.EnableFrameworkUpdate = true;
                     _modelNode.PlayMotionFromGroup("Idle", 0, CubismMotionPriority.PriorityIdle, true);
+                    // Hiyori moc is all Normal; cycle Cubism 5 dest-blends so the
+                    // extended shader path is visible. A Cubism 5 moc with real
+                    // ColorBlend ids still uses those values when Force stays -1
+                    // unless CUBISM_FORCE_BLEND is set.
+                    ApplyForcedBlendFromEnv();
                     break;
                 case "offscreen":
                     _modelNode.EnableFrameworkUpdate = true;
@@ -315,6 +324,13 @@ namespace Live2D.Cubism.Demo
             GD.Print($"Play motion group={group} index={index} loop={loop}");
         }
 
+        private void ApplyForcedBlendFromEnv()
+        {
+            var forced = OS.GetEnvironment("CUBISM_FORCE_BLEND");
+            if (!string.IsNullOrEmpty(forced) && int.TryParse(forced, out var id))
+                _modelNode.ForceColorBlend = id;
+        }
+
         private void EnableOffscreenPass()
         {
             if (_modelNode == null || _offscreen != null) return;
@@ -338,6 +354,14 @@ namespace Live2D.Cubism.Demo
             if (_demoMode == "lipsync" && _modelNode != null)
             {
                 _modelNode.SetMouthOpening((Mathf.Sin(_time * 8f) + 1f) * 0.5f);
+            }
+
+            if (_demoMode == "blend" && _modelNode != null &&
+                string.IsNullOrEmpty(OS.GetEnvironment("CUBISM_FORCE_BLEND")))
+            {
+                // 2s per mode: ColorBurn, LinearBurn, Screen, Overlay
+                int[] cycle = { 7, 8, 10, 12 };
+                _modelNode.ForceColorBlend = cycle[Mathf.Clamp((int)(_time / 2f), 0, cycle.Length - 1)];
             }
 
             if (_modelNode?.Model != null)
