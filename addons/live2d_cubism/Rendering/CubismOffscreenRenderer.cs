@@ -13,8 +13,9 @@ namespace Live2D.Cubism.Rendering
     /// Cubism 5 offscreen pass. Native/Unity render owner parts into an offscreen
     /// target then composite. This hook always allocates a SubViewport and reparents
     /// the model into it (Hiyori OffscreenCount=0; Ren=24). Per-owner RTs are not
-    /// split yet — the whole model is drawn into one target, then shown through
-    /// SubViewportContainer so Movie Maker sees unique frames.
+    /// split yet — the whole model is drawn into one target. Movie Maker does
+    /// not capture SubViewport contents, so the demo keeps the model in the
+    /// root viewport unless CUBISM_OFFSCREEN_REPARENT=1.
     /// </summary>
     public partial class CubismOffscreenRenderer : Node2D
     {

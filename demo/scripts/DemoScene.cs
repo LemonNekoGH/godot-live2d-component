@@ -349,7 +349,11 @@ namespace Live2D.Cubism.Demo
             AddChild(_offscreen);
             var size = GetViewportRect().Size;
             _offscreen.Initialize(_modelNode, new Vector2I((int)size.X, (int)size.Y));
-            _offscreen.ReparentModel(_modelNode);
+            // Movie Maker records the root viewport only. Reparenting the model
+            // into the SubViewport makes --write-movie a green/frozen plate.
+            // CUBISM_OFFSCREEN_REPARENT=1 keeps the Native-style blit for screenshots.
+            if (OS.GetEnvironment("CUBISM_OFFSCREEN_REPARENT") == "1")
+                _offscreen.ReparentModel(_modelNode);
         }
 
         public override void _Process(double delta)
