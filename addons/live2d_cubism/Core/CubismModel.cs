@@ -42,6 +42,18 @@ namespace Live2D.Cubism.Core
 
         public bool IsValid => UnmanagedModel != null && UnmanagedModel.IsValid;
 
+        public CubismTaskableModel Taskable { get; private set; }
+
+        public int OffscreenCount
+        {
+            get
+            {
+                if (!IsValid) return 0;
+                try { return CubismCoreDll.GetOffscreenCount(UnmanagedModel.Ptr); }
+                catch { return 0; }
+            }
+        }
+
         private bool _isOverriddenParameterRepeat = true;
 
         public bool GetOverrideFlagForModelParameterRepeat() => _isOverriddenParameterRepeat;
@@ -60,6 +72,7 @@ namespace Live2D.Cubism.Core
 
             model.UnmanagedModel = unmanaged;
             model.InitializeFromUnmanaged();
+            model.Taskable = new CubismTaskableModel(model);
 
             return model;
         }

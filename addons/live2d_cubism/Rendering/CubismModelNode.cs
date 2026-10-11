@@ -110,10 +110,13 @@ namespace Live2D.Cubism.Rendering
                 _maskController?.UpdateMasks();
                 UpdateRenderers();
 
+                LogBlendHistogram();
+
                 GD.Print($"[CubismModelNode] Loaded model: {Model.Name} " +
                          $"({Model.Parameters.Length} params, {Model.Parts.Length} parts, " +
                          $"{Model.Drawables.Length} drawables, " +
-                         $"canvas={Model.CanvasSizeInPixels}, PPU={Model.PixelsPerUnit})");
+                         $"canvas={Model.CanvasSizeInPixels}, PPU={Model.PixelsPerUnit}, " +
+                         $"offscreens={Model.OffscreenCount})");
 
                 return true;
             }
@@ -187,6 +190,8 @@ namespace Live2D.Cubism.Rendering
             var lipSyncIds = ModelJson.GetGroupIds("LipSync");
             MouthController.MouthParameterIds = lipSyncIds;
             MouthController.SetParameters(Model.Parameters);
+
+            MotionController.SetEffectIds(blinkIds, lipSyncIds);
 
             // Look-at — default bindings match Unity CubismLookParameter on official models
             LookController = new CubismLookController();
@@ -359,6 +364,7 @@ namespace Live2D.Cubism.Rendering
         }
 
         public bool EnableFrameworkUpdate { get; set; } = false;
+        public bool EnableAsyncUpdate { get; set; } = false;
 
         public override void _Process(double delta)
         {
@@ -385,7 +391,16 @@ namespace Live2D.Cubism.Rendering
             }
 
             // Core update (writes params/parts → Core → reads back drawables)
-            Model.UpdateModel();
+            if (EnableAsyncUpdate && Model.Taskable != null)
+            {
+                Model.Taskable.ExecuteAsync = true;
+                Model.Taskable.StartUpdate();
+                Model.Taskable.WaitForCompletion();
+            }
+            else
+            {
+                Model.UpdateModel();
+            }
 
             // Unity CubismModel.OnModelUpdate: after TryReadParameters, restore
             // so next frame's Multiply/Add start from the saved (pre-blink) base.
@@ -396,6 +411,20 @@ namespace Live2D.Cubism.Rendering
             // Masks then renderers (order 10000)
             _maskController?.UpdateMasks();
             UpdateRenderers();
+        }
+
+        private void LogBlendHistogram()
+        {
+            var counts = new System.Collections.Generic.Dictionary<int, int>();
+            foreach (var d in Model.Drawables)
+            {
+                counts.TryGetValue(d.ColorBlend, out var n);
+                counts[d.ColorBlend] = n + 1;
+            }
+            var parts = new System.Text.StringBuilder("[BlendModes]");
+            foreach (var kv in counts)
+                parts.Append($" {kv.Key}={kv.Value}");
+            GD.Print(parts.ToString());
         }
 
         private void UpdateRenderers()
@@ -420,14 +449,17 @@ namespace Live2D.Cubism.Rendering
         /// </summary>
         public CubismPlayingMotion PlayMotion(string motionFilePath,
             CubismMotionPriority priority = CubismMotionPriority.PriorityNormal,
-            bool loop = false)
+            bool loop = false,
+            float fadeInOverride = -1f,
+            float fadeOutOverride = -1f)
         {
             var motion = CubismMotion3Json.LoadAtPath(motionFilePath);
-            return MotionController?.PlayMotion(motion, priority, loop);
+            return MotionController?.PlayMotion(motion, priority, loop, fadeInOverride, fadeOutOverride);
         }
 
         /// <summary>
-        /// Plays a motion from the model's motion groups.
+        /// Plays a motion from the model's motion groups, using the group FadeIn/Out
+        /// times from model3.json (Native / Unity importer overrides).
         /// </summary>
         public CubismPlayingMotion PlayMotionFromGroup(string groupName, int index,
             CubismMotionPriority priority = CubismMotionPriority.PriorityNormal,
@@ -442,7 +474,8 @@ namespace Live2D.Cubism.Rendering
             var motionPath = ModelJson.ResolvePath(motionRefs[index].File);
             if (motionPath == null) return null;
 
-            return PlayMotion(motionPath, priority, loop);
+            return PlayMotion(motionPath, priority, loop,
+                motionRefs[index].FadeInTime, motionRefs[index].FadeOutTime);
         }
 
         /// <summary>

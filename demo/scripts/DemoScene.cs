@@ -31,6 +31,7 @@ namespace Live2D.Cubism.Demo
         private float _quitAfter = -1f;
         private bool _screenshotTaken;
         private int _isolateDrawable = -1;
+        private CubismOffscreenRenderer _offscreen;
 
         public override void _Ready()
         {
@@ -199,7 +200,7 @@ namespace Live2D.Cubism.Demo
                     break;
                 case "motion":
                     _modelNode.EnableFrameworkUpdate = true;
-                    _modelNode.PlayMotionFromGroup("Idle", 0, CubismMotionPriority.PriorityIdle, true);
+                    PlayConfiguredMotion("Idle", 0, CubismMotionPriority.PriorityIdle, true);
                     break;
                 case "expression":
                     _modelNode.EnableFrameworkUpdate = true;
@@ -239,6 +240,20 @@ namespace Live2D.Cubism.Demo
                 case "lookat":
                     _modelNode.EnableFrameworkUpdate = true;
                     break;
+                case "blend":
+                    _modelNode.EnableFrameworkUpdate = true;
+                    _modelNode.PlayMotionFromGroup("Idle", 0, CubismMotionPriority.PriorityIdle, true);
+                    break;
+                case "offscreen":
+                    _modelNode.EnableFrameworkUpdate = true;
+                    _modelNode.PlayMotionFromGroup("Idle", 0, CubismMotionPriority.PriorityIdle, true);
+                    EnableOffscreenPass();
+                    break;
+                case "async":
+                    _modelNode.EnableFrameworkUpdate = true;
+                    _modelNode.EnableAsyncUpdate = true;
+                    _modelNode.PlayMotionFromGroup("Idle", 0, CubismMotionPriority.PriorityIdle, true);
+                    break;
                 case "all":
                     _modelNode.EnableFrameworkUpdate = true;
                     _modelNode.PlayMotionFromGroup("Idle", 0, CubismMotionPriority.PriorityIdle, true);
@@ -247,6 +262,67 @@ namespace Live2D.Cubism.Demo
                     _modelNode.EnableFrameworkUpdate = false;
                     break;
             }
+
+            if (_demoMode.StartsWith("idle") || _demoMode.StartsWith("tapbody") || _demoMode.StartsWith("motion-"))
+                PlayIndexedMotionMode();
+        }
+
+        private void PlayIndexedMotionMode()
+        {
+            _modelNode.EnableFrameworkUpdate = true;
+            if (_modelNode.EyeBlinkController != null)
+                _modelNode.EyeBlinkController.EnableAutoInput = false;
+
+            string group = "Idle";
+            int index = 0;
+            bool loop = false;
+
+            if (_demoMode.StartsWith("idle"))
+            {
+                int.TryParse(_demoMode.Substring(4), out index);
+                group = "Idle";
+                loop = true;
+            }
+            else if (_demoMode.StartsWith("tapbody"))
+            {
+                int.TryParse(_demoMode.Substring(7), out index);
+                group = "TapBody";
+            }
+
+            PlayConfiguredMotion(group, index, CubismMotionPriority.PriorityNormal, loop);
+        }
+
+        private void PlayConfiguredMotion(string defaultGroup, int defaultIndex,
+            CubismMotionPriority priority, bool defaultLoop)
+        {
+            var group = OS.GetEnvironment("CUBISM_MOTION_GROUP");
+            if (string.IsNullOrEmpty(group))
+                group = defaultGroup;
+            var index = defaultIndex;
+            var indexStr = OS.GetEnvironment("CUBISM_MOTION_INDEX");
+            if (!string.IsNullOrEmpty(indexStr))
+                int.TryParse(indexStr, out index);
+            var loop = defaultLoop;
+            var loopStr = OS.GetEnvironment("CUBISM_MOTION_LOOP");
+            if (loopStr == "0") loop = false;
+            if (loopStr == "1") loop = true;
+
+            if (_modelNode.EyeBlinkController != null &&
+                (_demoMode.StartsWith("idle") || _demoMode.StartsWith("tapbody")))
+                _modelNode.EyeBlinkController.EnableAutoInput = false;
+
+            _modelNode.PlayMotionFromGroup(group, index, priority, loop);
+            GD.Print($"Play motion group={group} index={index} loop={loop}");
+        }
+
+        private void EnableOffscreenPass()
+        {
+            if (_modelNode == null || _offscreen != null) return;
+            _offscreen = new CubismOffscreenRenderer();
+            AddChild(_offscreen);
+            var size = GetViewportRect().Size;
+            _offscreen.Initialize(_modelNode, new Vector2I((int)size.X, (int)size.Y));
+            _offscreen.ReparentModel(_modelNode);
         }
 
         public override void _Process(double delta)

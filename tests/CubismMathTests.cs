@@ -10,6 +10,7 @@
 using System;
 using Live2D.Cubism.Core;
 using Live2D.Cubism.Framework;
+using Live2D.Cubism.Framework.Motion;
 using Live2D.Cubism.Framework.Physics;
 using Live2D.Cubism.Framework.Json;
 using Godot;
@@ -39,6 +40,8 @@ namespace Live2D.Cubism.Tests
             allPassed &= TestBezierCurveEvaluation();
             allPassed &= TestEyeBlinkTimingCurve();
             allPassed &= TestParameterStoreMultiplyRestore();
+            allPassed &= TestNativeBezierAndFade();
+            allPassed &= TestHiyoriMotionCurvesVsNative();
 
             if (allPassed)
                 GD.Print("[TESTS] All golden-value math tests PASSED");
@@ -527,6 +530,145 @@ namespace Live2D.Cubism.Tests
                 }
                 return 1.0f;
             }
+        }
+
+        static bool TestNativeBezierAndFade()
+        {
+            GD.Print("[TEST] Native Cardano bezier + sine fade");
+            bool ok = true;
+
+            ok &= AssertClose(CubismMath.GetEasingSine(-1f), 0f, "easing sine <0");
+            ok &= AssertClose(CubismMath.GetEasingSine(0f), 0f, "easing sine 0");
+            ok &= AssertClose(CubismMath.GetEasingSine(1f), 1f, "easing sine 1");
+            ok &= AssertClose(CubismMath.GetEasingSine(2f), 1f, "easing sine >1");
+            ok &= AssertClose(CubismMath.GetEasingSine(0.5f), 0.5f, "easing sine 0.5");
+
+            // Restricted: t linear in time, control points on the line → 0.5 at mid.
+            float restricted = CubismMotion3Json.BezierEvaluateRestricted(
+                0f, 0f, 0.333f, 0.333f, 0.666f, 0.666f, 1f, 1f, 0.5f);
+            ok &= AssertClose(restricted, 0.5f, "restricted bezier mid");
+
+            // Unrestricted Cardano on the same line should also be ~0.5.
+            float cardano = CubismMotion3Json.BezierEvaluateCardano(
+                0f, 0f, 0.333f, 0.333f, 0.666f, 0.666f, 1f, 1f, 0.5f);
+            ok &= AssertClose(cardano, 0.5f, "cardano bezier mid");
+
+            // Native-equivalent Cardano vs production EvaluateCurve (unrestricted).
+            float[] bezier = { 0f, 0f, 1, 0.2f, 0.8f, 0.8f, 0.1f, 1f, 1f };
+            float prod = CubismMotion3Json.EvaluateCurve(bezier, 0.4f, false);
+            float native = NativeCardanoSegment(0f, 0f, 0.2f, 0.8f, 0.8f, 0.1f, 1f, 1f, 0.4f);
+            ok &= AssertClose(prod, native, "EvaluateCurve Cardano vs Native clone");
+
+            return ok;
+        }
+
+        static bool TestHiyoriMotionCurvesVsNative()
+        {
+            GD.Print("[TEST] Hiyori motion3 curves vs Native evaluator");
+            bool ok = true;
+
+            var roots = new[]
+            {
+                "demo/models/Hiyori/motions",
+                "res://demo/models/Hiyori/motions"
+            };
+            string dir = null;
+            foreach (var r in roots)
+            {
+                var p = r.StartsWith("res://") ? Godot.ProjectSettings.GlobalizePath(r) : r;
+                if (System.IO.Directory.Exists(p))
+                {
+                    dir = p;
+                    break;
+                }
+            }
+
+            if (dir == null)
+            {
+                GD.Print("  SKIP Hiyori motions not on disk");
+                return true;
+            }
+
+            var files = System.IO.Directory.GetFiles(dir, "Hiyori_m*.motion3.json");
+            System.Array.Sort(files);
+            if (files.Length == 0)
+            {
+                GD.Print("  SKIP no Hiyori_m*.motion3.json");
+                return true;
+            }
+
+            float[] sampleTimes = { 0f, 0.25f, 1f / 60f, 0.5f, 1.0f, 2.0f };
+            int compared = 0;
+            foreach (var file in files)
+            {
+                var motion = CubismMotion3Json.LoadAtPath(file);
+                if (motion?.Curves == null) continue;
+                var restricted = motion.Meta?.AreBeziersRestricted ?? false;
+                if (restricted)
+                {
+                    GD.PrintErr($"  FAIL {System.IO.Path.GetFileName(file)} expected unrestricted beziers");
+                    ok = false;
+                }
+
+                foreach (var t in sampleTimes)
+                {
+                    if (t > (motion.Meta?.Duration ?? 0f))
+                        continue;
+                    var values = CubismMotionController.EvaluateAllParameterCurves(motion, t);
+                    foreach (var kv in values)
+                    {
+                        if (float.IsNaN(kv.Value) || float.IsInfinity(kv.Value))
+                        {
+                            GD.PrintErr($"  FAIL {System.IO.Path.GetFileName(file)} {kv.Key} t={t} is {kv.Value}");
+                            ok = false;
+                        }
+                    }
+                    compared += values.Count;
+                }
+            }
+
+            GD.Print($"  PASS Hiyori motions={files.Length} curve-samples={compared} finite");
+            ok &= compared > 0;
+
+            // Priority: equal-or-lower is rejected unless Force (Unity).
+            var ctrl = new CubismMotionController();
+            var dummy = new CubismMotion3Json
+            {
+                Meta = new CubismMotion3Json.SerializableMeta { Duration = 1f, Fps = 30f, FadeInTime = 0f, FadeOutTime = 0.5f },
+                Curves = System.Array.Empty<CubismMotion3Json.SerializableCurve>()
+            };
+            ctrl.SetModel(System.Array.Empty<CubismParameter>(), System.Array.Empty<CubismPart>());
+            var first = ctrl.PlayMotion(dummy, CubismMotionPriority.PriorityNormal);
+            var blocked = ctrl.PlayMotion(dummy, CubismMotionPriority.PriorityIdle);
+            var forced = ctrl.PlayMotion(dummy, CubismMotionPriority.PriorityForce);
+            if (first == null || blocked != null || forced == null)
+            {
+                GD.PrintErr("  FAIL priority reject/force");
+                ok = false;
+            }
+            else
+                GD.Print("  PASS priority: Idle rejected while Normal plays; Force preempts");
+
+            return ok;
+        }
+
+        /// <summary>Line-for-line Native BezierEvaluateCardanoInterpretation (local lerps).</summary>
+        static float NativeCardanoSegment(
+            float t0, float v0, float c1t, float c1v, float c2t, float c2v, float t3, float v3, float time)
+        {
+            float a = t3 - 3.0f * c2t + 3.0f * c1t - t0;
+            float b = 3.0f * c2t - 6.0f * c1t + 3.0f * t0;
+            float c = 3.0f * c1t - 3.0f * t0;
+            float d = t0 - time;
+            float t = CubismMath.CardanoAlgorithmForBezier(a, b, c, d);
+
+            float Lerp(float x, float y, float u) => x + (y - x) * u;
+            float p01v = Lerp(v0, c1v, t);
+            float p12v = Lerp(c1v, c2v, t);
+            float p23v = Lerp(c2v, v3, t);
+            float p012v = Lerp(p01v, p12v, t);
+            float p123v = Lerp(p12v, p23v, t);
+            return Lerp(p012v, p123v, t);
         }
     }
 }

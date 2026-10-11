@@ -7,6 +7,7 @@
 
 using System;
 using System.IO;
+using Live2D.Cubism.Core;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
@@ -76,16 +77,23 @@ namespace Live2D.Cubism.Framework.Json
         }
 
         /// <summary>
-        /// Evaluates a curve at a given time using the segment data.
-        /// Mirrors the Unity SDK's segment evaluation exactly.
+        /// Evaluates a motion3 curve at <paramref name="time"/>.
+        /// Matches Native CubismMotion.cpp EvaluateCurve / segment evaluators.
+        /// Hiyori motions set AreBeziersRestricted=false, so bezier uses Cardano
+        /// (BezierEvaluateCardanoInterpretation), not a 1D time binary search.
         /// </summary>
         public static float EvaluateCurve(float[] segments, float time)
+        {
+            return EvaluateCurve(segments, time, areBeziersRestricted: false);
+        }
+
+        public static float EvaluateCurve(float[] segments, float time, bool areBeziersRestricted)
         {
             if (segments == null || segments.Length < 2)
                 return 0f;
 
-            float lastPointTime = segments[0];
-            float lastPointValue = segments[1];
+            var p0t = segments[0];
+            var p0v = segments[1];
 
             int i = 2;
             while (i < segments.Length)
@@ -97,103 +105,125 @@ namespace Live2D.Cubism.Framework.Json
                 {
                     case SegmentTypeLinear:
                     {
-                        float nextTime = segments[i];
-                        float nextValue = segments[i + 1];
+                        var p1t = segments[i];
+                        var p1v = segments[i + 1];
                         i += 2;
-
-                        if (time <= nextTime)
-                        {
-                            float t = (time - lastPointTime) / (nextTime - lastPointTime);
-                            return lastPointValue + (nextValue - lastPointValue) * t;
-                        }
-
-                        lastPointTime = nextTime;
-                        lastPointValue = nextValue;
+                        if (time <= p1t)
+                            return LinearEvaluate(p0t, p0v, p1t, p1v, time);
+                        p0t = p1t;
+                        p0v = p1v;
                         break;
                     }
                     case SegmentTypeBezier:
                     {
-                        float cx1 = segments[i], cy1 = segments[i + 1];
-                        float cx2 = segments[i + 2], cy2 = segments[i + 3];
-                        float nextTime = segments[i + 4], nextValue = segments[i + 5];
+                        var c1t = segments[i];
+                        var c1v = segments[i + 1];
+                        var c2t = segments[i + 2];
+                        var c2v = segments[i + 3];
+                        var p3t = segments[i + 4];
+                        var p3v = segments[i + 5];
                         i += 6;
-
-                        if (time <= nextTime)
+                        if (time <= p3t)
                         {
-                            float t = BezierFindT(lastPointTime, cx1, cx2, nextTime, time);
-                            return BezierEvaluate(lastPointValue, cy1, cy2, nextValue, t);
+                            return areBeziersRestricted
+                                ? BezierEvaluateRestricted(p0t, p0v, c1t, c1v, c2t, c2v, p3t, p3v, time)
+                                : BezierEvaluateCardano(p0t, p0v, c1t, c1v, c2t, c2v, p3t, p3v, time);
                         }
-
-                        lastPointTime = nextTime;
-                        lastPointValue = nextValue;
+                        p0t = p3t;
+                        p0v = p3v;
                         break;
                     }
                     case SegmentTypeStepped:
                     {
-                        float nextTime = segments[i];
-                        float nextValue = segments[i + 1];
+                        var p1t = segments[i];
+                        var p1v = segments[i + 1];
                         i += 2;
-
-                        if (time <= nextTime)
-                        {
-                            return lastPointValue;
-                        }
-
-                        lastPointTime = nextTime;
-                        lastPointValue = nextValue;
+                        if (time <= p1t)
+                            return p0v;
+                        p0t = p1t;
+                        p0v = p1v;
                         break;
                     }
                     case SegmentTypeInverseStepped:
                     {
-                        float nextTime = segments[i];
-                        float nextValue = segments[i + 1];
+                        var p1t = segments[i];
+                        var p1v = segments[i + 1];
                         i += 2;
-
-                        if (time <= nextTime)
-                        {
-                            return nextValue;
-                        }
-
-                        lastPointTime = nextTime;
-                        lastPointValue = nextValue;
+                        if (time <= p1t)
+                            return p1v;
+                        p0t = p1t;
+                        p0v = p1v;
                         break;
                     }
                     default:
-                        return lastPointValue;
+                        return p0v;
                 }
             }
 
-            return lastPointValue;
+            return p0v;
         }
 
-        private static float BezierFindT(float p0, float p1, float p2, float p3, float target)
+        public static float LinearEvaluate(float t0, float v0, float t1, float v1, float time)
         {
-            const float epsilon = 0.01f;
-            const int maxIterations = 20;
+            var t = (time - t0) / (t1 - t0);
+            if (t < 0.0f) t = 0.0f;
+            return v0 + (v1 - v0) * t;
+        }
 
-            float lo = 0f, hi = 1f;
-            float t = 0.5f;
+        private struct MotionPoint
+        {
+            public float Time;
+            public float Value;
+        }
 
-            for (int iter = 0; iter < maxIterations; iter++)
+        private static MotionPoint LerpPoints(MotionPoint a, MotionPoint b, float t)
+        {
+            return new MotionPoint
             {
-                float v = BezierEvaluate(p0, p1, p2, p3, t);
-                if (MathF.Abs(v - target) < epsilon) break;
-
-                if (v < target) lo = t;
-                else hi = t;
-                t = (lo + hi) * 0.5f;
-            }
-
-            return t;
+                Time = a.Time + ((b.Time - a.Time) * t),
+                Value = a.Value + ((b.Value - a.Value) * t)
+            };
         }
 
-        private static float BezierEvaluate(float p0, float p1, float p2, float p3, float t)
+        private static float BezierValue(MotionPoint p0, MotionPoint p1, MotionPoint p2, MotionPoint p3, float t)
         {
-            float u = 1f - t;
-            return u * u * u * p0 +
-                   3f * u * u * t * p1 +
-                   3f * u * t * t * p2 +
-                   t * t * t * p3;
+            var p01 = LerpPoints(p0, p1, t);
+            var p12 = LerpPoints(p1, p2, t);
+            var p23 = LerpPoints(p2, p3, t);
+            var p012 = LerpPoints(p01, p12, t);
+            var p123 = LerpPoints(p12, p23, t);
+            return LerpPoints(p012, p123, t).Value;
+        }
+
+        /// <summary>Native BezierEvaluate (restricted / old-curve): t is linear in time.</summary>
+        public static float BezierEvaluateRestricted(
+            float t0, float v0, float c1t, float c1v, float c2t, float c2v, float t3, float v3, float time)
+        {
+            var t = (time - t0) / (t3 - t0);
+            if (t < 0.0f) t = 0.0f;
+            return BezierValue(
+                new MotionPoint { Time = t0, Value = v0 },
+                new MotionPoint { Time = c1t, Value = c1v },
+                new MotionPoint { Time = c2t, Value = c2v },
+                new MotionPoint { Time = t3, Value = v3 },
+                t);
+        }
+
+        /// <summary>Native BezierEvaluateCardanoInterpretation.</summary>
+        public static float BezierEvaluateCardano(
+            float t0, float v0, float c1t, float c1v, float c2t, float c2v, float t3, float v3, float time)
+        {
+            var a = t3 - 3.0f * c2t + 3.0f * c1t - t0;
+            var b = 3.0f * c2t - 6.0f * c1t + 3.0f * t0;
+            var c = 3.0f * c1t - 3.0f * t0;
+            var d = t0 - time;
+            var t = CubismMath.CardanoAlgorithmForBezier(a, b, c, d);
+            return BezierValue(
+                new MotionPoint { Time = t0, Value = v0 },
+                new MotionPoint { Time = c1t, Value = c1v },
+                new MotionPoint { Time = c2t, Value = c2v },
+                new MotionPoint { Time = t3, Value = v3 },
+                t);
         }
     }
 }

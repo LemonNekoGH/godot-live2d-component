@@ -10,6 +10,9 @@
 #   ./tools/record_feature.sh all [out_dir]
 #
 # Modes: static motion expression blink physics pose lipsync lookat
+#        idle0..idle8 tapbody0  (one Hiyori motion3 each)
+#        motions  (all Idle + TapBody)
+#        blend offscreen async
 #
 # Environment:
 #   CUBISM_RECORD_SECONDS   duration in simulated seconds (default 8)
@@ -45,6 +48,19 @@ artifact_name() {
     pose) echo "feature-pose-tapbody.mp4" ;;
     lipsync) echo "feature-lipsync.mp4" ;;
     lookat) echo "feature-lookat.mp4" ;;
+    idle0) echo "feature-motion-idle0-m01.mp4" ;;
+    idle1) echo "feature-motion-idle1-m02.mp4" ;;
+    idle2) echo "feature-motion-idle2-m03.mp4" ;;
+    idle3) echo "feature-motion-idle3-m05.mp4" ;;
+    idle4) echo "feature-motion-idle4-m06.mp4" ;;
+    idle5) echo "feature-motion-idle5-m07.mp4" ;;
+    idle6) echo "feature-motion-idle6-m08.mp4" ;;
+    idle7) echo "feature-motion-idle7-m09.mp4" ;;
+    idle8) echo "feature-motion-idle8-m10.mp4" ;;
+    tapbody0) echo "feature-motion-tapbody0-m04.mp4" ;;
+    blend) echo "feature-blend-modes.mp4" ;;
+    offscreen) echo "feature-offscreen.mp4" ;;
+    async) echo "feature-async-update.mp4" ;;
     *) echo "feature-$1.mp4" ;;
   esac
 }
@@ -119,6 +135,28 @@ record_one() {
 }
 
 MODES=(static motion expression blink physics pose lipsync lookat)
+MOTION_MODES=(idle0 idle1 idle2 idle3 idle4 idle5 idle6 idle7 idle8 tapbody0)
+EXTRA_MODES=(blend offscreen async)
+
+is_known() {
+  local m="$1"
+  for x in "${MODES[@]}" "${MOTION_MODES[@]}" "${EXTRA_MODES[@]}"; do
+    [[ "$x" == "$m" ]] && return 0
+  done
+  return 1
+}
+
+if [[ "$MODE" == "motions" ]]; then
+  OUT_DIR="${2:-$(default_dir)}"
+  mkdir -p "$OUT_DIR"
+  # Longest Hiyori clip is 8.57s + fade; keep 10s so the motion finishes.
+  SECONDS_LEN="${CUBISM_RECORD_SECONDS:-10}"
+  FRAMES=$((SECONDS_LEN * FPS))
+  for m in "${MOTION_MODES[@]}"; do
+    record_one "$m" "$OUT_DIR/$(artifact_name "$m")"
+  done
+  exit 0
+fi
 
 if [[ "$MODE" == "all" ]]; then
   OUT_DIR="${2:-$(default_dir)}"
@@ -129,13 +167,9 @@ if [[ "$MODE" == "all" ]]; then
   exit 0
 fi
 
-valid=0
-for m in "${MODES[@]}"; do
-  if [[ "$m" == "$MODE" ]]; then valid=1; break; fi
-done
-if [[ "$valid" -ne 1 ]]; then
+if ! is_known "$MODE"; then
   echo "Unknown mode: $MODE" >&2
-  echo "Expected: ${MODES[*]} or all" >&2
+  echo "Expected: ${MODES[*]} ${MOTION_MODES[*]} ${EXTRA_MODES[*]} motions or all" >&2
   exit 2
 fi
 

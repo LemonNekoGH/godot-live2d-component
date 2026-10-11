@@ -43,7 +43,7 @@ addons/live2d_cubism/
 
 Matches Unity's `PreLateUpdate` insertion exactly:
 
-1. **Motion/Fade** (order 100) — curve evaluation, fade in/out
+1. **Motion/Fade** (order 100) — Native Cardano bezier (Hiyori is unrestricted), sine fade, per-parameter fades, Unity priority
 2. **ParameterStore.Save** (order 150) — snapshot after motion, before additive controllers
 3. **Pose** (order 200) — mutually exclusive part visibility
 4. **Expression** (order 300) — expression blending (Add/Multiply/Override)

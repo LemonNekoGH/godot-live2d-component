@@ -64,6 +64,15 @@ namespace Live2D.Cubism.Core
             MaskIndices = unmanaged.GetMasks(index);
             ParentPartIndex = unmanaged.GetParentPartIndex(index);
             BlendMode = unmanaged.GetBlendMode(index);
+            ColorBlend = BlendMode & 0xFF;
+            AlphaBlend = (BlendMode >> 8) & 0xFF;
+            if (ColorBlend == CubismCoreDll.ColorBlendType_Normal)
+            {
+                if (IsAdditive)
+                    ColorBlend = CubismCoreDll.ColorBlendType_AddCompatible;
+                else if (IsMultiplicative)
+                    ColorBlend = CubismCoreDll.ColorBlendType_MultiplyCompatible;
+            }
 
             UpdateDynamic(unmanaged);
         }
