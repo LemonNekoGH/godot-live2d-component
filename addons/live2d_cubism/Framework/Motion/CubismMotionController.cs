@@ -116,6 +116,14 @@ namespace Live2D.Cubism.Framework.Motion
             }
         }
 
+        /// <summary>Drop every playing motion and rewind the user clock (dump / tests).</summary>
+        public void HardReset()
+        {
+            foreach (var layer in _layers)
+                layer.HardClear();
+            UserTimeSeconds = 0f;
+        }
+
         public void Update(float deltaTime)
         {
             if (_parameters == null) return;

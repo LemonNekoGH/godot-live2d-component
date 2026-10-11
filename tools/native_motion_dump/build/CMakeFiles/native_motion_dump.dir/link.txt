@@ -1,0 +1,1 @@
+/usr/bin/g++ CMakeFiles/native_motion_dump.dir/main.cpp.o -o native_motion_dump  libFrameworkHeadless.a /tmp/cubism_native/CubismSdkForNative-5-r.5/Core/lib/linux/x86_64/libLive2DCubismCore.a 

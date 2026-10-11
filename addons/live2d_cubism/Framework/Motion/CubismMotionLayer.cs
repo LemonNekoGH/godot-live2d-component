@@ -84,5 +84,11 @@ namespace Live2D.Cubism.Framework.Motion
             if (Playing.Count == 0)
                 CurrentPriority = 0;
         }
+
+        public void HardClear()
+        {
+            Playing.Clear();
+            CurrentPriority = 0;
+        }
     }
 }

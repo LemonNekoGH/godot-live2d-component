@@ -143,6 +143,13 @@ namespace Live2D.Cubism.Demo
                 _modelNode.IsolateDrawableIndex = _isolateDrawable;
 
                 EnsureDemoExpressions();
+                var dumpDir = OS.GetEnvironment("CUBISM_DUMP_DIR");
+                if (!string.IsNullOrEmpty(dumpDir))
+                {
+                    CubismMotionDump.DumpAllHiyoriMotions(_modelNode, dumpDir);
+                    GetTree().Quit();
+                    return;
+                }
                 ApplyDemoMode();
             }
             else
