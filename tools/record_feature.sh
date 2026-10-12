@@ -12,7 +12,7 @@
 # Modes: static motion expression blink physics pose lipsync lookat
 #        idle0..idle8 tapbody0  (one Hiyori motion3 each)
 #        motions  (all Idle + TapBody)
-#        blend alpha offscreen async
+#        blend alpha async
 #
 # Environment:
 #   CUBISM_RECORD_SECONDS   duration in simulated seconds (default 8)
@@ -60,7 +60,6 @@ artifact_name() {
     tapbody0) echo "feature-motion-tapbody0-m04.mp4" ;;
     blend) echo "feature-blend-modes.mp4" ;;
     alpha) echo "feature-alpha-blend-modes.mp4" ;;
-    offscreen) echo "feature-offscreen.mp4" ;;
     async) echo "feature-async-update.mp4" ;;
     *) echo "feature-$1.mp4" ;;
   esac
@@ -142,7 +141,7 @@ record_one() {
 
 MODES=(static motion expression blink physics pose lipsync lookat)
 MOTION_MODES=(idle0 idle1 idle2 idle3 idle4 idle5 idle6 idle7 idle8 tapbody0)
-EXTRA_MODES=(blend alpha offscreen async)
+EXTRA_MODES=(blend alpha async)
 
 is_known() {
   local m="$1"

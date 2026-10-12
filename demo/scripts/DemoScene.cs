@@ -31,7 +31,6 @@ namespace Live2D.Cubism.Demo
         private float _quitAfter = -1f;
         private bool _screenshotTaken;
         private int _isolateDrawable = -1;
-        private CubismOffscreenRenderer _offscreen;
         private bool _cycleBlends;
         private bool _cycleAlphaBlends;
 
@@ -287,11 +286,6 @@ namespace Live2D.Cubism.Demo
                     _modelNode.PlayMotionFromGroup("Idle", 0, CubismMotionPriority.PriorityIdle, true);
                     _cycleAlphaBlends = true;
                     break;
-                case "offscreen":
-                    _modelNode.EnableFrameworkUpdate = true;
-                    _modelNode.PlayMotionFromGroup("Idle", 0, CubismMotionPriority.PriorityIdle, true);
-                    EnableOffscreenPass();
-                    break;
                 case "async":
                     _modelNode.EnableFrameworkUpdate = true;
                     _modelNode.EnableAsyncUpdate = true;
@@ -363,20 +357,6 @@ namespace Live2D.Cubism.Demo
             var forced = OS.GetEnvironment("CUBISM_FORCE_BLEND");
             if (!string.IsNullOrEmpty(forced) && int.TryParse(forced, out var id))
                 _modelNode.ForceColorBlend = id;
-        }
-
-        private void EnableOffscreenPass()
-        {
-            if (_modelNode == null || _offscreen != null) return;
-            _offscreen = new CubismOffscreenRenderer();
-            AddChild(_offscreen);
-            var size = GetViewportRect().Size;
-            _offscreen.Initialize(_modelNode, new Vector2I((int)size.X, (int)size.Y));
-            // Movie Maker records the root viewport only. Reparenting the model
-            // into the SubViewport makes --write-movie a green/frozen plate.
-            // CUBISM_OFFSCREEN_REPARENT=1 keeps the Native-style blit for screenshots.
-            if (OS.GetEnvironment("CUBISM_OFFSCREEN_REPARENT") == "1")
-                _offscreen.ReparentModel(_modelNode);
         }
 
         public override void _Process(double delta)
