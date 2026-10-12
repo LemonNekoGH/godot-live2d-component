@@ -8,7 +8,6 @@
 using System.Collections.Generic;
 using Live2D.Cubism.Core;
 using Live2D.Cubism.Framework.Json;
-using Live2D.Cubism.Framework.MotionFade;
 
 namespace Live2D.Cubism.Framework.Motion
 {
@@ -51,7 +50,66 @@ namespace Live2D.Cubism.Framework.Motion
         public int LayerCount { get; }
         public float UserTimeSeconds { get; private set; }
 
-        private readonly CubismMotionLayer[] _layers;
+        private sealed class MotionLayer
+        {
+            public float Weight { get; set; } = 1f;
+            public int Priority { get; set; }
+            public List<CubismPlayingMotion> Playing { get; } = new();
+            public bool IsFinished => Playing.Count == 0 || Playing.TrueForAll(m => m.IsFinished);
+
+            public bool CanPlay(CubismMotionPriority priority) =>
+                priority == CubismMotionPriority.PriorityForce || (int)priority > Priority;
+
+            public CubismPlayingMotion Play(CubismMotion3Json clip, CubismMotionPriority priority,
+                bool loop, float fadeIn, float fadeOut, float userTimeSeconds, float speed = 1f)
+            {
+                if (Playing.Count > 0)
+                {
+                    var last = Playing[^1];
+                    if (last.Motion != null && !last.IsFinished)
+                    {
+                        var newEnd = userTimeSeconds + last.FadeOutTime;
+                        if (last.EndTime < 0f || newEnd < last.EndTime)
+                            last.EndTime = newEnd;
+                        last.IsLooping = false;
+                    }
+                }
+
+                var duration = clip.Meta?.Duration ?? 0f;
+                var playing = new CubismPlayingMotion
+                {
+                    Motion = clip,
+                    CurrentTime = 0f,
+                    Weight = 0f,
+                    FadeInTime = fadeIn,
+                    FadeOutTime = fadeOut,
+                    IsLooping = loop || (clip.Meta?.Loop ?? false),
+                    Priority = priority,
+                    StartTime = userTimeSeconds,
+                    FadeInStartTime = userTimeSeconds,
+                    EndTime = loop || duration <= 0f ? -1f : userTimeSeconds + duration / speed,
+                    Speed = speed
+                };
+                Playing.Add(playing);
+                Priority = (int)priority;
+                return playing;
+            }
+
+            public void RemoveFinished()
+            {
+                Playing.RemoveAll(m => m.IsFinished);
+                if (Playing.Count == 0)
+                    Priority = 0;
+            }
+
+            public void Clear()
+            {
+                Playing.Clear();
+                Priority = 0;
+            }
+        }
+
+        private readonly MotionLayer[] _layers;
         private CubismParameter[] _parameters;
         private CubismPart[] _parts;
         private string[] _eyeBlinkIds = System.Array.Empty<string>();
@@ -60,12 +118,12 @@ namespace Live2D.Cubism.Framework.Motion
         public CubismMotionController(int layerCount = 1)
         {
             LayerCount = layerCount < 1 ? 1 : layerCount;
-            _layers = new CubismMotionLayer[LayerCount];
+            _layers = new MotionLayer[LayerCount];
             for (int i = 0; i < LayerCount; i++)
-                _layers[i] = new CubismMotionLayer(i);
+                _layers[i] = new MotionLayer();
         }
 
-        public CubismMotionLayer GetLayer(int index) =>
+        private MotionLayer GetLayer(int index) =>
             index >= 0 && index < _layers.Length ? _layers[index] : null;
 
         public void SetModel(CubismParameter[] parameters, CubismPart[] parts)
@@ -119,7 +177,7 @@ namespace Live2D.Cubism.Framework.Motion
         public void HardReset()
         {
             foreach (var layer in _layers)
-                layer.HardClear();
+                layer.Clear();
             UserTimeSeconds = 0f;
         }
 
@@ -132,7 +190,7 @@ namespace Live2D.Cubism.Framework.Motion
             foreach (var layer in _layers)
             {
                 foreach (var pm in layer.Playing)
-                    ApplyMotion(pm, layer.LayerWeight);
+                    ApplyMotion(pm, layer.Weight);
 
                 layer.RemoveFinished();
             }
@@ -270,11 +328,11 @@ namespace Live2D.Cubism.Framework.Motion
         {
             var fadeIn = pm.FadeInTime == 0.0f
                 ? 1.0f
-                : CubismFadeMath.GetEasingSine((userTimeSeconds - pm.FadeInStartTime) / pm.FadeInTime);
+                : CubismMath.GetEasingSine((userTimeSeconds - pm.FadeInStartTime) / pm.FadeInTime);
 
             var fadeOut = (pm.FadeOutTime == 0.0f || pm.EndTime < 0.0f)
                 ? 1.0f
-                : CubismFadeMath.GetEasingSine((pm.EndTime - userTimeSeconds) / pm.FadeOutTime);
+                : CubismMath.GetEasingSine((pm.EndTime - userTimeSeconds) / pm.FadeOutTime);
 
             var w = fadeIn * fadeOut;
             if (w < 0f) w = 0f;
@@ -295,23 +353,23 @@ namespace Live2D.Cubism.Framework.Motion
             else
             {
                 float fin = curve.FadeInTime < 0.0f
-                    ? CubismFadeMath.GetEasingSine((userTime - pm.FadeInStartTime) / pm.FadeInTime)
+                    ? CubismMath.GetEasingSine((userTime - pm.FadeInStartTime) / pm.FadeInTime)
                     : (curve.FadeInTime == 0.0f
                         ? 1.0f
-                        : CubismFadeMath.GetEasingSine((userTime - pm.FadeInStartTime) / curve.FadeInTime));
+                        : CubismMath.GetEasingSine((userTime - pm.FadeInStartTime) / curve.FadeInTime));
 
                 float fout;
                 if (curve.FadeOutTime < 0.0f)
                 {
                     fout = (pm.FadeOutTime == 0.0f || pm.EndTime < 0.0f)
                         ? 1.0f
-                        : CubismFadeMath.GetEasingSine((pm.EndTime - userTime) / pm.FadeOutTime);
+                        : CubismMath.GetEasingSine((pm.EndTime - userTime) / pm.FadeOutTime);
                 }
                 else
                 {
                     fout = (curve.FadeOutTime == 0.0f || pm.EndTime < 0.0f)
                         ? 1.0f
-                        : CubismFadeMath.GetEasingSine((pm.EndTime - userTime) / curve.FadeOutTime);
+                        : CubismMath.GetEasingSine((pm.EndTime - userTime) / curve.FadeOutTime);
                 }
 
                 v = source + (value - source) * (fin * fout);
