@@ -6,7 +6,6 @@
  */
 
 using System;
-using System.Runtime.InteropServices;
 using Godot;
 
 namespace Live2D.Cubism.Core.Unmanaged
@@ -17,33 +16,18 @@ namespace Live2D.Cubism.Core.Unmanaged
         public Vector2 OriginInPixels { get; }
         public float PixelsPerUnit { get; }
 
-        public CubismUnmanagedCanvasInformation(IntPtr modelPtr)
+        public unsafe CubismUnmanagedCanvasInformation(IntPtr modelPtr)
         {
-            var sizePtr = Marshal.AllocHGlobal(Marshal.SizeOf<Vector2>());
-            var originPtr = Marshal.AllocHGlobal(Marshal.SizeOf<Vector2>());
-            var ppuPtr = Marshal.AllocHGlobal(sizeof(float));
+            float* size = stackalloc float[2];
+            float* origin = stackalloc float[2];
+            float pixelsPerUnit;
 
-            try
-            {
-                CubismCoreDll.ReadCanvasInfo(modelPtr, sizePtr, originPtr, ppuPtr);
+            CubismCoreDll.ReadCanvasInfo(
+                modelPtr, (IntPtr)size, (IntPtr)origin, (IntPtr)(&pixelsPerUnit));
 
-                unsafe
-                {
-                    var sizeFloats = (float*)sizePtr;
-                    SizeInPixels = new Vector2(sizeFloats[0], sizeFloats[1]);
-
-                    var originFloats = (float*)originPtr;
-                    OriginInPixels = new Vector2(originFloats[0], originFloats[1]);
-
-                    PixelsPerUnit = *(float*)ppuPtr;
-                }
-            }
-            finally
-            {
-                Marshal.FreeHGlobal(sizePtr);
-                Marshal.FreeHGlobal(originPtr);
-                Marshal.FreeHGlobal(ppuPtr);
-            }
+            SizeInPixels = new Vector2(size[0], size[1]);
+            OriginInPixels = new Vector2(origin[0], origin[1]);
+            PixelsPerUnit = pixelsPerUnit;
         }
     }
 }
