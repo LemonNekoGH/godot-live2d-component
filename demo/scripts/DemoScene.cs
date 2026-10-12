@@ -286,11 +286,6 @@ namespace Live2D.Cubism.Demo
                     _modelNode.PlayMotionFromGroup("Idle", 0, CubismMotionPriority.PriorityIdle, true);
                     _cycleAlphaBlends = true;
                     break;
-                case "async":
-                    _modelNode.EnableFrameworkUpdate = true;
-                    _modelNode.EnableAsyncUpdate = true;
-                    _modelNode.PlayMotionFromGroup("Idle", 0, CubismMotionPriority.PriorityIdle, true);
-                    break;
                 case "all":
                     _modelNode.EnableFrameworkUpdate = true;
                     _modelNode.PlayMotionFromGroup("Idle", 0, CubismMotionPriority.PriorityIdle, true);

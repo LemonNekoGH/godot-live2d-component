@@ -370,7 +370,6 @@ namespace Live2D.Cubism.Rendering
         }
 
         public bool EnableFrameworkUpdate { get; set; } = false;
-        public bool EnableAsyncUpdate { get; set; } = false;
         /// <summary>When &gt;= 0, every drawable uses this Core color-blend id (demo / tests).</summary>
         public int ForceColorBlend { get; set; } = -1;
         /// <summary>When &gt;= 0, every drawable uses this Core alpha-blend id (demo / tests).</summary>
@@ -401,16 +400,7 @@ namespace Live2D.Cubism.Rendering
             }
 
             // Core update (writes params/parts → Core → reads back drawables)
-            if (EnableAsyncUpdate && Model.Taskable != null)
-            {
-                Model.Taskable.ExecuteAsync = true;
-                Model.Taskable.StartUpdate();
-                Model.Taskable.WaitForCompletion();
-            }
-            else
-            {
-                Model.UpdateModel();
-            }
+            Model.UpdateModel();
 
             // Unity CubismModel.OnModelUpdate: after TryReadParameters, restore
             // so next frame's Multiply/Add start from the saved (pre-blink) base.
