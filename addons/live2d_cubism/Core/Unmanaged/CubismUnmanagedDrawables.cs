@@ -37,40 +37,13 @@ namespace Live2D.Cubism.Core.Unmanaged
             return ids;
         }
 
-        public unsafe byte GetConstantFlag(int index)
-        {
-            return CubismCoreDll.GetDrawableConstantFlags(_modelPtr)[index];
-        }
-
-        public unsafe byte GetDynamicFlag(int index)
-        {
-            return CubismCoreDll.GetDrawableDynamicFlags(_modelPtr)[index];
-        }
-
-        public unsafe int GetTextureIndex(int index)
-        {
-            return CubismCoreDll.GetDrawableTextureIndices(_modelPtr)[index];
-        }
-
-        public unsafe int GetDrawOrder(int index)
-        {
-            return CubismCoreDll.GetDrawableDrawOrders(_modelPtr)[index];
-        }
-
-        public unsafe int GetRenderOrder(int index)
-        {
-            return CubismCoreDll.GetRenderOrders(_modelPtr)[index];
-        }
-
-        public unsafe float GetOpacity(int index)
-        {
-            return CubismCoreDll.GetDrawableOpacities(_modelPtr)[index];
-        }
-
-        public unsafe int GetMaskCount(int index)
-        {
-            return CubismCoreDll.GetDrawableMaskCounts(_modelPtr)[index];
-        }
+        public unsafe byte GetConstantFlag(int index) => CubismCoreDll.GetDrawableConstantFlags(_modelPtr)[index];
+        public unsafe byte GetDynamicFlag(int index) => CubismCoreDll.GetDrawableDynamicFlags(_modelPtr)[index];
+        public unsafe int GetTextureIndex(int index) => CubismCoreDll.GetDrawableTextureIndices(_modelPtr)[index];
+        public unsafe int GetDrawOrder(int index) => CubismCoreDll.GetDrawableDrawOrders(_modelPtr)[index];
+        public unsafe int GetRenderOrder(int index) => CubismCoreDll.GetRenderOrders(_modelPtr)[index];
+        public unsafe float GetOpacity(int index) => CubismCoreDll.GetDrawableOpacities(_modelPtr)[index];
+        private unsafe int GetMaskCount(int index) => CubismCoreDll.GetDrawableMaskCounts(_modelPtr)[index];
 
         public unsafe int[] GetMasks(int index)
         {
@@ -86,10 +59,7 @@ namespace Live2D.Cubism.Core.Unmanaged
             return result;
         }
 
-        public unsafe int GetVertexCount(int index)
-        {
-            return CubismCoreDll.GetDrawableVertexCounts(_modelPtr)[index];
-        }
+        private unsafe int GetVertexCount(int index) => CubismCoreDll.GetDrawableVertexCounts(_modelPtr)[index];
 
         public unsafe Vector2[] GetVertexPositions(int index)
         {
@@ -126,10 +96,7 @@ namespace Live2D.Cubism.Core.Unmanaged
             return result;
         }
 
-        public unsafe int GetIndexCount(int index)
-        {
-            return CubismCoreDll.GetDrawableIndexCounts(_modelPtr)[index];
-        }
+        private unsafe int GetIndexCount(int index) => CubismCoreDll.GetDrawableIndexCounts(_modelPtr)[index];
 
         public unsafe int[] GetIndices(int index)
         {
@@ -170,64 +137,12 @@ namespace Live2D.Cubism.Core.Unmanaged
                 colors[index * 4 + 3]);
         }
 
-        public unsafe int GetParentPartIndex(int index)
-        {
-            return CubismCoreDll.GetDrawableParentPartIndices(_modelPtr)[index];
-        }
-
-        public unsafe int GetBlendMode(int index)
-        {
-            return CubismCoreDll.GetDrawableBlendModes(_modelPtr)[index];
-        }
-
-        public bool IsVisible(int index)
-        {
-            return (GetDynamicFlag(index) & CubismCoreDll.IsVisible) != 0;
-        }
-
-        public bool VisibilityDidChange(int index)
-        {
-            return (GetDynamicFlag(index) & CubismCoreDll.VisibilityDidChange) != 0;
-        }
-
-        public bool OpacityDidChange(int index)
-        {
-            return (GetDynamicFlag(index) & CubismCoreDll.OpacityDidChange) != 0;
-        }
-
-        public bool DrawOrderDidChange(int index)
-        {
-            return (GetDynamicFlag(index) & CubismCoreDll.DrawOrderDidChange) != 0;
-        }
-
-        public bool RenderOrderDidChange(int index)
-        {
-            return (GetDynamicFlag(index) & CubismCoreDll.RenderOrderDidChange) != 0;
-        }
-
-        public bool VertexPositionsDidChange(int index)
-        {
-            return (GetDynamicFlag(index) & CubismCoreDll.VertexPositionsDidChange) != 0;
-        }
-
-        public bool IsAdditive(int index)
-        {
-            return (GetConstantFlag(index) & CubismCoreDll.BlendAdditive) != 0;
-        }
-
-        public bool IsMultiplicative(int index)
-        {
-            return (GetConstantFlag(index) & CubismCoreDll.BlendMultiplicative) != 0;
-        }
-
-        public bool IsDoubleSided(int index)
-        {
-            return (GetConstantFlag(index) & CubismCoreDll.IsDoubleSided) != 0;
-        }
-
-        public bool IsInvertedMask(int index)
-        {
-            return (GetConstantFlag(index) & CubismCoreDll.IsInvertedMask) != 0;
-        }
+        public unsafe int GetParentPartIndex(int index) => CubismCoreDll.GetDrawableParentPartIndices(_modelPtr)[index];
+        public unsafe int GetBlendMode(int index) => CubismCoreDll.GetDrawableBlendModes(_modelPtr)[index];
+        public bool IsVisible(int index) => (GetDynamicFlag(index) & CubismCoreDll.IsVisible) != 0;
+        public bool IsAdditive(int index) => (GetConstantFlag(index) & CubismCoreDll.BlendAdditive) != 0;
+        public bool IsMultiplicative(int index) => (GetConstantFlag(index) & CubismCoreDll.BlendMultiplicative) != 0;
+        public bool IsDoubleSided(int index) => (GetConstantFlag(index) & CubismCoreDll.IsDoubleSided) != 0;
+        public bool IsInvertedMask(int index) => (GetConstantFlag(index) & CubismCoreDll.IsInvertedMask) != 0;
     }
 }

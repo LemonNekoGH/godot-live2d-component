@@ -115,8 +115,6 @@ namespace Live2D.Cubism.Core
         }
 
         public const float Epsilon = 0.00001f;
-        public const float Pi = 3.14159265358979323846f;
-
         public static float RangeF(float value, float min, float max) => ClampF(value, min, max);
 
         /// <summary>Native CubismMath.GetEasingSine / Unity CubismFadeMath.GetEasingSine.</summary>

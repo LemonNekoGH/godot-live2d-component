@@ -103,18 +103,6 @@ namespace Live2D.Cubism.Core.Unmanaged
         [DllImport(DllName, EntryPoint = "csmGetVersion")]
         public static extern uint GetVersion();
 
-        [DllImport(DllName, EntryPoint = "csmGetLatestMocVersion")]
-        public static extern uint GetLatestMocVersion();
-
-        [DllImport(DllName, EntryPoint = "csmGetMocVersion")]
-        public static extern uint GetMocVersion(IntPtr moc, uint mocSize);
-
-        [DllImport(DllName, EntryPoint = "csmSetLogFunction")]
-        public static extern void SetLogFunction(IntPtr handler);
-
-        [DllImport(DllName, EntryPoint = "csmGetLogFunction")]
-        public static extern IntPtr GetLogFunction();
-
         [DllImport(DllName, EntryPoint = "csmGetSizeofModel")]
         public static extern uint GetSizeofModel(IntPtr moc);
 
@@ -159,12 +147,6 @@ namespace Live2D.Cubism.Core.Unmanaged
 
         [DllImport(DllName, EntryPoint = "csmGetParameterRepeats")]
         public static extern unsafe int* GetParameterRepeats(IntPtr model);
-
-        [DllImport(DllName, EntryPoint = "csmGetParameterKeyCounts")]
-        public static extern unsafe int* GetParameterKeyCounts(IntPtr model);
-
-        [DllImport(DllName, EntryPoint = "csmGetParameterKeyValues")]
-        public static extern unsafe float** GetParameterKeyValues(IntPtr model);
 
         [DllImport(DllName, EntryPoint = "csmGetPartCount")]
         public static extern int GetPartCount(IntPtr model);

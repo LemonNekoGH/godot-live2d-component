@@ -50,15 +50,8 @@ namespace Live2D.Cubism.Core.Unmanaged
             return model;
         }
 
-        public void Update()
-        {
-            CubismCoreDll.UpdateModel(Ptr);
-        }
-
-        public void ResetDynamicFlags()
-        {
-            CubismCoreDll.ResetDrawableDynamicFlags(Ptr);
-        }
+        public void Update() => CubismCoreDll.UpdateModel(Ptr);
+        public void ResetDynamicFlags() => CubismCoreDll.ResetDrawableDynamicFlags(Ptr);
 
         public void Dispose()
         {

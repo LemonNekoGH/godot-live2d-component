@@ -36,19 +36,8 @@ namespace Live2D.Cubism.Core.Unmanaged
             return ids;
         }
 
-        public unsafe float GetOpacity(int index)
-        {
-            return CubismCoreDll.GetPartOpacities(_modelPtr)[index];
-        }
-
-        public unsafe void SetOpacity(int index, float value)
-        {
-            CubismCoreDll.GetPartOpacities(_modelPtr)[index] = value;
-        }
-
-        public unsafe int GetParentPartIndex(int index)
-        {
-            return CubismCoreDll.GetPartParentPartIndices(_modelPtr)[index];
-        }
+        public unsafe float GetOpacity(int index) => CubismCoreDll.GetPartOpacities(_modelPtr)[index];
+        public unsafe void SetOpacity(int index, float value) => CubismCoreDll.GetPartOpacities(_modelPtr)[index] = value;
+        public unsafe int GetParentPartIndex(int index) => CubismCoreDll.GetPartParentPartIndices(_modelPtr)[index];
     }
 }

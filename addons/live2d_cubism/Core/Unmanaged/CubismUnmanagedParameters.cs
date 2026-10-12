@@ -36,44 +36,12 @@ namespace Live2D.Cubism.Core.Unmanaged
             return ids;
         }
 
-        public unsafe float GetMinimumValue(int index)
-        {
-            return CubismCoreDll.GetParameterMinimumValues(_modelPtr)[index];
-        }
-
-        public unsafe float GetMaximumValue(int index)
-        {
-            return CubismCoreDll.GetParameterMaximumValues(_modelPtr)[index];
-        }
-
-        public unsafe float GetDefaultValue(int index)
-        {
-            return CubismCoreDll.GetParameterDefaultValues(_modelPtr)[index];
-        }
-
-        public unsafe float GetValue(int index)
-        {
-            return CubismCoreDll.GetParameterValues(_modelPtr)[index];
-        }
-
-        public unsafe void SetValue(int index, float value)
-        {
-            CubismCoreDll.GetParameterValues(_modelPtr)[index] = value;
-        }
-
-        public unsafe int GetType(int index)
-        {
-            return CubismCoreDll.GetParameterTypes(_modelPtr)[index];
-        }
-
-        public unsafe int GetRepeat(int index)
-        {
-            return CubismCoreDll.GetParameterRepeats(_modelPtr)[index];
-        }
-
-        public unsafe int GetKeyCount(int index)
-        {
-            return CubismCoreDll.GetParameterKeyCounts(_modelPtr)[index];
-        }
+        public unsafe float GetMinimumValue(int index) => CubismCoreDll.GetParameterMinimumValues(_modelPtr)[index];
+        public unsafe float GetMaximumValue(int index) => CubismCoreDll.GetParameterMaximumValues(_modelPtr)[index];
+        public unsafe float GetDefaultValue(int index) => CubismCoreDll.GetParameterDefaultValues(_modelPtr)[index];
+        public unsafe float GetValue(int index) => CubismCoreDll.GetParameterValues(_modelPtr)[index];
+        public unsafe void SetValue(int index, float value) => CubismCoreDll.GetParameterValues(_modelPtr)[index] = value;
+        public unsafe int GetType(int index) => CubismCoreDll.GetParameterTypes(_modelPtr)[index];
+        public unsafe int GetRepeat(int index) => CubismCoreDll.GetParameterRepeats(_modelPtr)[index];
     }
 }
