@@ -10,27 +10,16 @@ using System.Runtime.InteropServices;
 
 namespace Live2D.Cubism.Core.Unmanaged
 {
-    internal static class CubismUnmanagedMemory
+    internal static unsafe class CubismUnmanagedMemory
     {
         public static IntPtr Allocate(int size, int alignment)
         {
-            int extra = alignment + IntPtr.Size;
-            var rawPtr = Marshal.AllocHGlobal(size + extra);
-            long raw = (long)rawPtr;
-            long aligned = (raw + extra) & ~((long)alignment - 1);
-            var alignedPtr = new IntPtr(aligned);
-
-            Marshal.WriteIntPtr(alignedPtr - IntPtr.Size, rawPtr);
-
-            return alignedPtr;
+            return (IntPtr)NativeMemory.AlignedAlloc((nuint)size, (nuint)alignment);
         }
 
         public static void Deallocate(IntPtr alignedPtr)
         {
-            if (alignedPtr == IntPtr.Zero) return;
-
-            var rawPtr = Marshal.ReadIntPtr(alignedPtr - IntPtr.Size);
-            Marshal.FreeHGlobal(rawPtr);
+            NativeMemory.AlignedFree((void*)alignedPtr);
         }
     }
 }
