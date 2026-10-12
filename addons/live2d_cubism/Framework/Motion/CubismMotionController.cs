@@ -26,7 +26,6 @@ namespace Live2D.Cubism.Framework.Motion
     public class CubismPlayingMotion
     {
         public CubismMotion3Json Motion { get; set; }
-        public CubismMotionState State { get; set; }
         public float CurrentTime { get; set; }
         public float Weight { get; set; } = 1f;
         public float FadeInTime { get; set; } = 1f;

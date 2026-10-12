@@ -60,7 +60,6 @@ namespace Live2D.Cubism.Framework.Motion
             var playing = new CubismPlayingMotion
             {
                 Motion = clip,
-                State = new CubismMotionState { Clip = clip, Speed = speed, IsLoop = loop },
                 CurrentTime = 0f,
                 Weight = 0f,
                 FadeInTime = fadeIn,

@@ -23,7 +23,6 @@ namespace Live2D.Cubism.Core
         private readonly object _gate = new();
         private readonly ManualResetEventSlim _done = new(true);
         public bool ExecuteAsync { get; set; }
-        public bool DidExecute { get; private set; }
 
         public CubismTaskableModel(CubismModel model)
         {
@@ -32,13 +31,11 @@ namespace Live2D.Cubism.Core
 
         public void StartUpdate()
         {
-            DidExecute = false;
             if (!ExecuteAsync)
             {
                 lock (_gate)
                 {
                     _model.UpdateModel();
-                    DidExecute = true;
                 }
                 return;
             }
@@ -51,7 +48,6 @@ namespace Live2D.Cubism.Core
                     lock (_gate)
                     {
                         _model.UpdateModel();
-                        DidExecute = true;
                     }
                 }
                 finally

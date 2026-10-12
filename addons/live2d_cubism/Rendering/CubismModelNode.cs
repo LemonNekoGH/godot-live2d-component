@@ -116,8 +116,7 @@ namespace Live2D.Cubism.Rendering
                 GD.Print($"[CubismModelNode] Loaded model: {Model.Name} " +
                          $"({Model.Parameters.Length} params, {Model.Parts.Length} parts, " +
                          $"{Model.Drawables.Length} drawables, " +
-                         $"canvas={Model.CanvasSizeInPixels}, PPU={Model.PixelsPerUnit}, " +
-                         $"offscreens={Model.OffscreenCount})");
+                         $"canvas={Model.CanvasSizeInPixels}, PPU={Model.PixelsPerUnit})");
 
                 return true;
             }

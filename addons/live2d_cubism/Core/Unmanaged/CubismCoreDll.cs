@@ -178,9 +178,6 @@ namespace Live2D.Cubism.Core.Unmanaged
         [DllImport(DllName, EntryPoint = "csmGetPartParentPartIndices")]
         public static extern unsafe int* GetPartParentPartIndices(IntPtr model);
 
-        [DllImport(DllName, EntryPoint = "csmGetPartOffscreenIndices")]
-        public static extern unsafe int* GetPartOffscreenIndices(IntPtr model);
-
         [DllImport(DllName, EntryPoint = "csmGetDrawableCount")]
         public static extern int GetDrawableCount(IntPtr model);
 
@@ -238,31 +235,5 @@ namespace Live2D.Cubism.Core.Unmanaged
         [DllImport(DllName, EntryPoint = "csmGetDrawableBlendModes")]
         public static extern unsafe int* GetDrawableBlendModes(IntPtr model);
 
-        [DllImport(DllName, EntryPoint = "csmGetOffscreenCount")]
-        public static extern int GetOffscreenCount(IntPtr model);
-
-        [DllImport(DllName, EntryPoint = "csmGetOffscreenBlendModes")]
-        public static extern unsafe int* GetOffscreenBlendModes(IntPtr model);
-
-        [DllImport(DllName, EntryPoint = "csmGetOffscreenOpacities")]
-        public static extern unsafe float* GetOffscreenOpacities(IntPtr model);
-
-        [DllImport(DllName, EntryPoint = "csmGetOffscreenOwnerIndices")]
-        public static extern unsafe int* GetOffscreenOwnerIndices(IntPtr model);
-
-        [DllImport(DllName, EntryPoint = "csmGetOffscreenMultiplyColors")]
-        public static extern unsafe float* GetOffscreenMultiplyColors(IntPtr model);
-
-        [DllImport(DllName, EntryPoint = "csmGetOffscreenScreenColors")]
-        public static extern unsafe float* GetOffscreenScreenColors(IntPtr model);
-
-        [DllImport(DllName, EntryPoint = "csmGetOffscreenMaskCounts")]
-        public static extern unsafe int* GetOffscreenMaskCounts(IntPtr model);
-
-        [DllImport(DllName, EntryPoint = "csmGetOffscreenMasks")]
-        public static extern unsafe int** GetOffscreenMasks(IntPtr model);
-
-        [DllImport(DllName, EntryPoint = "csmGetOffscreenConstantFlags")]
-        public static extern unsafe byte* GetOffscreenConstantFlags(IntPtr model);
     }
 }

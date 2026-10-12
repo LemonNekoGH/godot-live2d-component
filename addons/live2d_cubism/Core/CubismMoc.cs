@@ -20,7 +20,6 @@ namespace Live2D.Cubism.Core
         public string Name { get; set; }
 
         private CubismUnmanagedMoc _unmanagedMoc;
-        private int _referenceCount;
 
         public bool IsValid => _unmanagedMoc != null && _unmanagedMoc.IsValid;
 
@@ -45,16 +44,7 @@ namespace Live2D.Cubism.Core
             if (!IsValid) return null;
 
             var model = CubismUnmanagedModel.CreateFrom(_unmanagedMoc);
-            if (model != null)
-            {
-                _referenceCount++;
-            }
             return model;
-        }
-
-        internal void ReleaseUnmanagedModel()
-        {
-            _referenceCount--;
         }
 
         public void Dispose()
