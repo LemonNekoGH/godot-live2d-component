@@ -111,8 +111,6 @@ namespace Live2D.Cubism.Rendering
                 _maskController?.UpdateMasks();
                 UpdateRenderers();
 
-                LogBlendHistogram();
-
                 GD.Print($"[CubismModelNode] Loaded model: {Model.Name} " +
                          $"({Model.Parameters.Length} params, {Model.Parts.Length} parts, " +
                          $"{Model.Drawables.Length} drawables, " +
@@ -423,37 +421,6 @@ namespace Live2D.Cubism.Rendering
             // Masks then renderers (order 10000)
             _maskController?.UpdateMasks();
             UpdateRenderers();
-        }
-
-        private void LogBlendHistogram()
-        {
-            var counts = new System.Collections.Generic.Dictionary<int, int>();
-            foreach (var d in Model.Drawables)
-            {
-                counts.TryGetValue(d.ColorBlend, out var n);
-                counts[d.ColorBlend] = n + 1;
-            }
-            var parts = new System.Text.StringBuilder("[BlendModes]");
-            foreach (var kv in counts)
-                parts.Append($" {kv.Key}={kv.Value}");
-            var alphaCounts = new System.Collections.Generic.Dictionary<int, int>();
-            foreach (var d in Model.Drawables)
-            {
-                alphaCounts.TryGetValue(d.AlphaBlend, out var n);
-                alphaCounts[d.AlphaBlend] = n + 1;
-            }
-            parts.Append(" alpha:");
-            foreach (var kv in alphaCounts)
-                parts.Append($" {kv.Key}={kv.Value}");
-            GD.Print(parts.ToString());
-            for (int i = 0; i < Model.Drawables.Length; i++)
-            {
-                var d = Model.Drawables[i];
-                if (d.ColorBlend > CubismCoreDll.ColorBlendType_MultiplyCompatible ||
-                    d.AlphaBlend != CubismCoreDll.AlphaBlendType_Over)
-                    GD.Print($"  [BlendDrawable] index={i} id={d.Id} renderOrder={d.RenderOrder} " +
-                             $"color={d.ColorBlend} alpha={d.AlphaBlend}");
-            }
         }
 
         private void UpdateRenderers()
