@@ -193,33 +193,33 @@ namespace Live2D.Cubism.Framework.Json
         }
 
         /// <summary>
-        /// Loads the physics3.json as a string.
+        /// Loads and parses the referenced physics3.json.
         /// </summary>
-        public string LoadPhysics3Json()
+        public CubismPhysics3Json LoadPhysics3Json()
         {
             var path = ResolvePath(FileReferences?.Physics);
             if (path == null || !File.Exists(path)) return null;
-            return File.ReadAllText(path);
+            return CubismPhysics3Json.LoadAtPath(path);
         }
 
         /// <summary>
-        /// Loads the pose3.json as a string.
+        /// Loads and parses the referenced pose3.json.
         /// </summary>
-        public string LoadPose3Json()
+        public CubismPose3Json LoadPose3Json()
         {
             var path = ResolvePath(FileReferences?.Pose);
             if (path == null || !File.Exists(path)) return null;
-            return File.ReadAllText(path);
+            return CubismPose3Json.LoadAtPath(path);
         }
 
         /// <summary>
-        /// Loads the userdata3.json as a string.
+        /// Loads and parses the referenced userdata3.json.
         /// </summary>
-        public string LoadUserData3Json()
+        public CubismUserData3Json LoadUserData3Json()
         {
             var path = ResolvePath(FileReferences?.UserData);
             if (path == null || !File.Exists(path)) return null;
-            return File.ReadAllText(path);
+            return CubismUserData3Json.LoadAtPath(path);
         }
 
         /// <summary>

@@ -215,21 +215,14 @@ namespace Live2D.Cubism.Rendering
 
             // Pose
             PoseController = new CubismPoseController();
-            var poseJsonStr = ModelJson.LoadPose3Json();
-            if (poseJsonStr != null)
-            {
-                var poseJson = CubismPose3Json.LoadFrom(poseJsonStr);
+            var poseJson = ModelJson.LoadPose3Json();
+            if (poseJson != null)
                 PoseController.Initialize(Model.Parts, poseJson);
-            }
 
             // Physics
-            var physicsJsonStr = ModelJson.LoadPhysics3Json();
-            if (physicsJsonStr != null)
-            {
-                var physics3 = CubismPhysics3Json.LoadFrom(physicsJsonStr);
-                if (physics3 != null)
-                    InitializePhysics(physics3);
-            }
+            var physics3 = ModelJson.LoadPhysics3Json();
+            if (physics3 != null)
+                InitializePhysics(physics3);
 
             // Harmonic motion
             HarmonicMotionController = new CubismHarmonicMotionController();
@@ -237,12 +230,9 @@ namespace Live2D.Cubism.Rendering
 
             // User data
             UserDataController = new CubismUserDataController();
-            var userDataStr = ModelJson.LoadUserData3Json();
-            if (userDataStr != null)
-            {
-                var userData3 = CubismUserData3Json.LoadFrom(userDataStr);
+            var userData3 = ModelJson.LoadUserData3Json();
+            if (userData3 != null)
                 UserDataController.Initialize(userData3);
-            }
 
             // Raycaster
             Raycaster = new CubismRaycaster();
