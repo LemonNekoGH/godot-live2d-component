@@ -10,7 +10,7 @@ using Live2D.Cubism.Core.Unmanaged;
 namespace Live2D.Cubism.Rendering
 {
     /// <summary>
-    /// CPU clone of Native FragShaderSrcColorBlend.frag / Unity ColorBlendVariants.cginc.
+    /// Test clone of Native FragShaderSrcColorBlend.frag / Unity ColorBlendVariants.cginc.
     /// Core type ids (csmColorBlendType_*) are the runtime values written to
     /// <c>cubism_color_blend</c>. Compatible Add/Multiply stay on the old GL path.
     /// </summary>

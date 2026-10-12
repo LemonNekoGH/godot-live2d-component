@@ -11,7 +11,7 @@ using Live2D.Cubism.Core.Unmanaged;
 namespace Live2D.Cubism.Rendering
 {
     /// <summary>
-    /// CPU reference for Unity AlphaBlendVariants.cginc and Native
+    /// Test reference for Unity AlphaBlendVariants.cginc and Native
     /// FragShaderSrcAlphaBlend.frag. Inputs are straight RGB and alpha; the
     /// returned RGB is premultiplied, exactly like the SDK blend-image pass.
     /// </summary>

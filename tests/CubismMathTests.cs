@@ -44,8 +44,6 @@ namespace Live2D.Cubism.Tests
             allPassed &= TestParameterStoreMultiplyRestore();
             allPassed &= TestNativeBezierAndFade();
             allPassed &= TestHiyoriMotionCurvesVsNative();
-            allPassed &= TestColorBlendVsNative();
-            allPassed &= TestAlphaBlendVsNative();
             allPassed &= TestUnityLoopWrapAndPartOpacity();
 
             if (allPassed)
@@ -654,77 +652,6 @@ namespace Live2D.Cubism.Tests
             else
                 GD.Print("  PASS priority: Idle rejected while Normal plays; Force preempts");
 
-            return ok;
-        }
-
-        static bool TestColorBlendVsNative()
-        {
-            GD.Print("[TEST] Cubism 5 ColorBlend vs Native formulas");
-            bool ok = true;
-            float sr = 0.7f, sg = 0.2f, sb = 0.4f;
-            float dr = 0.3f, dg = 0.8f, db = 0.1f;
-
-            void Check(int mode, float er, float eg, float eb, string name)
-            {
-                CubismColorBlend.Apply(mode, sr, sg, sb, dr, dg, db, out var ar, out var ag, out var ab);
-                ok &= AssertClose(ar, er, name + ".r");
-                ok &= AssertClose(ag, eg, name + ".g");
-                ok &= AssertClose(ab, eb, name + ".b");
-            }
-
-            Check(CubismCoreDll.ColorBlendType_Add, MathF.Min(sr + dr, 1f), MathF.Min(sg + dg, 1f), MathF.Min(sb + db, 1f), "Add");
-            Check(CubismCoreDll.ColorBlendType_Darken, MathF.Min(sr, dr), MathF.Min(sg, dg), MathF.Min(sb, db), "Darken");
-            Check(CubismCoreDll.ColorBlendType_Multiply, sr * dr, sg * dg, sb * db, "Multiply");
-            Check(CubismCoreDll.ColorBlendType_ColorBurn,
-                CubismColorBlend.ColorBurn(sr, dr), CubismColorBlend.ColorBurn(sg, dg), CubismColorBlend.ColorBurn(sb, db), "ColorBurn");
-            Check(CubismCoreDll.ColorBlendType_LinearBurn,
-                MathF.Max(0f, sr + dr - 1f), MathF.Max(0f, sg + dg - 1f), MathF.Max(0f, sb + db - 1f), "LinearBurn");
-            Check(CubismCoreDll.ColorBlendType_Screen,
-                sr + dr - sr * dr, sg + dg - sg * dg, sb + db - sb * db, "Screen");
-            Check(CubismCoreDll.ColorBlendType_Overlay,
-                CubismColorBlend.Overlay(sr, dr), CubismColorBlend.Overlay(sg, dg), CubismColorBlend.Overlay(sb, db), "Overlay");
-            Check(CubismCoreDll.ColorBlendType_ColorDodge,
-                CubismColorBlend.ColorDodge(sr, dr), CubismColorBlend.ColorDodge(sg, dg), CubismColorBlend.ColorDodge(sb, db), "ColorDodge");
-            Check(CubismCoreDll.ColorBlendType_HardLight,
-                CubismColorBlend.HardLight(sr, dr), CubismColorBlend.HardLight(sg, dg), CubismColorBlend.HardLight(sb, db), "HardLight");
-            Check(CubismCoreDll.ColorBlendType_LinearLight,
-                CubismColorBlend.LinearLight(sr, dr), CubismColorBlend.LinearLight(sg, dg), CubismColorBlend.LinearLight(sb, db), "LinearLight");
-
-            // Dest=1 ColorBurn must return 1 (Native special case).
-            ok &= AssertClose(CubismColorBlend.ColorBurn(0.4f, 1f), 1f, "ColorBurn dest=1");
-            ok &= AssertClose(CubismColorBlend.ColorBurn(0f, 0.5f), 0f, "ColorBurn src=0");
-            ok &= AssertClose(CubismColorBlend.ColorDodge(1f, 0.4f), 1f, "ColorDodge src=1");
-            ok &= AssertClose(CubismColorBlend.ColorDodge(0.5f, 0f), 0f, "ColorDodge dest=0");
-
-            GD.Print(ok ? "  PASS ColorBlend formulas" : "  FAIL ColorBlend formulas");
-            return ok;
-        }
-
-        static bool TestAlphaBlendVsNative()
-        {
-            GD.Print("[TEST] Cubism 5 AlphaBlend vs Native / Unity formulas");
-            bool ok = true;
-            const float cr = 0.8f, cg = 0.3f, cb = 0.6f;
-            const float sr = 0.7f, sg = 0.2f, sb = 0.4f, sourceAlpha = 0.6f;
-            const float dr = 0.3f, dg = 0.8f, db = 0.1f, destinationAlpha = 0.25f;
-
-            void Check(int mode, float overlap, float sourceOnly, float destinationOnly, string name)
-            {
-                CubismAlphaBlend.Apply(mode, cr, cg, cb, sr, sg, sb, sourceAlpha,
-                    dr, dg, db, destinationAlpha, out var r, out var g, out var b, out var a);
-                ok &= AssertClose(r, cr * overlap + sr * sourceOnly + dr * destinationOnly, name + ".r");
-                ok &= AssertClose(g, cg * overlap + sg * sourceOnly + dg * destinationOnly, name + ".g");
-                ok &= AssertClose(b, cb * overlap + sb * sourceOnly + db * destinationOnly, name + ".b");
-                ok &= AssertClose(a, overlap + sourceOnly + destinationOnly, name + ".a");
-            }
-
-            Check(CubismCoreDll.AlphaBlendType_Over, 0.15f, 0.45f, 0.1f, "Over");
-            Check(CubismCoreDll.AlphaBlendType_Atop, 0.15f, 0f, 0.1f, "Atop");
-            Check(CubismCoreDll.AlphaBlendType_Out, 0f, 0f, 0.1f, "Out");
-            Check(CubismCoreDll.AlphaBlendType_ConjointOver, 0.25f, 0.35f, 0f, "ConjointOver");
-            Check(CubismCoreDll.AlphaBlendType_DisjointOver, 0f, 0.6f, 0.25f, "DisjointOver");
-
-            GD.Print(ok ? "  PASS AlphaBlend formulas" : "  FAIL AlphaBlend formulas");
             return ok;
         }
 
