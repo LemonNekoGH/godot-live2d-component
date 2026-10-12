@@ -540,19 +540,17 @@ void fragment() {
             var scale = ppu > 0 ? ppu : 1f;
             var opacity = drawable.Opacity;
 
-            packedPos = new Vector2[positions.Length];
-            packedUv = new Vector2[positions.Length];
+            packedPos = positions;
+            System.Array.Resize(ref uvs, positions.Length);
+            packedUv = uvs;
             packedCol = new Color[positions.Length];
             for (int i = 0; i < positions.Length; i++)
             {
-                packedPos[i] = positions[i] * scale;
-                packedUv[i] = i < uvs.Length ? uvs[i] : Vector2.Zero;
+                packedPos[i] *= scale;
                 packedCol[i] = new Color(1f, 1f, 1f, opacity);
             }
 
-            packedIdx = new int[indices.Length];
-            for (int i = 0; i < indices.Length; i++)
-                packedIdx[i] = indices[i];
+            packedIdx = indices;
 
             return true;
         }
