@@ -5,8 +5,8 @@
  * that can be found at https://www.live2d.com/eula/live2d-open-software-license-agreement_en.html.
  */
 
-using System.IO;
-using Newtonsoft.Json;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Live2D.Cubism.Framework.Json
 {
@@ -16,17 +16,17 @@ namespace Live2D.Cubism.Framework.Json
     public sealed class CubismExp3Json
     {
         [JsonIgnore] public string Name { get; set; }
-        [JsonProperty("Type")] public string Type { get; set; }
-        [JsonProperty("FadeInTime")] public float FadeInTime { get; set; } = 1.0f;
-        [JsonProperty("FadeOutTime")] public float FadeOutTime { get; set; } = 1.0f;
+        [JsonPropertyName("Type")] public string Type { get; set; }
+        [JsonPropertyName("FadeInTime")] public float FadeInTime { get; set; } = 1.0f;
+        [JsonPropertyName("FadeOutTime")] public float FadeOutTime { get; set; } = 1.0f;
 
-        [JsonProperty("Parameters")] public SerializableExpressionParameter[] Parameters { get; set; }
+        [JsonPropertyName("Parameters")] public SerializableExpressionParameter[] Parameters { get; set; }
 
         public class SerializableExpressionParameter
         {
-            [JsonProperty("Id")] public string Id { get; set; }
-            [JsonProperty("Value")] public float Value { get; set; }
-            [JsonProperty("Blend")] public string Blend { get; set; }
+            [JsonPropertyName("Id")] public string Id { get; set; }
+            [JsonPropertyName("Value")] public float Value { get; set; }
+            [JsonPropertyName("Blend")] public string Blend { get; set; }
         }
 
         /// <summary>
@@ -39,13 +39,13 @@ namespace Live2D.Cubism.Framework.Json
         public static CubismExp3Json LoadFrom(string jsonText)
         {
             if (string.IsNullOrEmpty(jsonText)) return null;
-            return JsonConvert.DeserializeObject<CubismExp3Json>(jsonText);
+            return JsonSerializer.Deserialize(jsonText, CubismJsonContext.Default.CubismExp3Json);
         }
 
         public static CubismExp3Json LoadAtPath(string path)
         {
-            if (!File.Exists(path)) return null;
-            return LoadFrom(File.ReadAllText(path));
+            var text = CubismAssetIo.ReadAllText(path);
+            return text != null ? LoadFrom(text) : null;
         }
     }
 }

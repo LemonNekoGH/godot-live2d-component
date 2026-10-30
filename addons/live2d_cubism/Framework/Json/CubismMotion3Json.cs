@@ -6,10 +6,9 @@
  */
 
 using System;
-using System.IO;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Live2D.Cubism.Core;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 
 namespace Live2D.Cubism.Framework.Json
 {
@@ -18,42 +17,42 @@ namespace Live2D.Cubism.Framework.Json
     /// </summary>
     public sealed class CubismMotion3Json
     {
-        public int Version { get; set; }
+        [JsonPropertyName("Version")] public int Version { get; set; }
 
-        public SerializableMeta Meta { get; set; }
+        [JsonPropertyName("Meta")] public SerializableMeta Meta { get; set; }
 
-        public SerializableCurve[] Curves { get; set; }
+        [JsonPropertyName("Curves")] public SerializableCurve[] Curves { get; set; }
 
-        public SerializableUserData[] UserData { get; set; }
+        [JsonPropertyName("UserData")] public SerializableUserData[] UserData { get; set; }
 
         public class SerializableMeta
         {
-            [JsonProperty("Duration")] public float Duration { get; set; }
-            [JsonProperty("Fps")] public float Fps { get; set; }
-            [JsonProperty("Loop")] public bool Loop { get; set; }
-            [JsonProperty("AreBeziersRestricted")] public bool AreBeziersRestricted { get; set; }
-            [JsonProperty("FadeInTime")] public float FadeInTime { get; set; } = -1f;
-            [JsonProperty("FadeOutTime")] public float FadeOutTime { get; set; } = -1f;
-            [JsonProperty("CurveCount")] public int CurveCount { get; set; }
-            [JsonProperty("TotalSegmentCount")] public int TotalSegmentCount { get; set; }
-            [JsonProperty("TotalPointCount")] public int TotalPointCount { get; set; }
-            [JsonProperty("UserDataCount")] public int UserDataCount { get; set; }
-            [JsonProperty("TotalUserDataSize")] public int TotalUserDataSize { get; set; }
+            [JsonPropertyName("Duration")] public float Duration { get; set; }
+            [JsonPropertyName("Fps")] public float Fps { get; set; }
+            [JsonPropertyName("Loop")] public bool Loop { get; set; }
+            [JsonPropertyName("AreBeziersRestricted")] public bool AreBeziersRestricted { get; set; }
+            [JsonPropertyName("FadeInTime")] public float FadeInTime { get; set; } = -1f;
+            [JsonPropertyName("FadeOutTime")] public float FadeOutTime { get; set; } = -1f;
+            [JsonPropertyName("CurveCount")] public int CurveCount { get; set; }
+            [JsonPropertyName("TotalSegmentCount")] public int TotalSegmentCount { get; set; }
+            [JsonPropertyName("TotalPointCount")] public int TotalPointCount { get; set; }
+            [JsonPropertyName("UserDataCount")] public int UserDataCount { get; set; }
+            [JsonPropertyName("TotalUserDataSize")] public int TotalUserDataSize { get; set; }
         }
 
         public class SerializableCurve
         {
-            [JsonProperty("Target")] public string Target { get; set; }
-            [JsonProperty("Id")] public string Id { get; set; }
-            [JsonProperty("FadeInTime")] public float FadeInTime { get; set; } = -1f;
-            [JsonProperty("FadeOutTime")] public float FadeOutTime { get; set; } = -1f;
-            [JsonProperty("Segments")] public float[] Segments { get; set; }
+            [JsonPropertyName("Target")] public string Target { get; set; }
+            [JsonPropertyName("Id")] public string Id { get; set; }
+            [JsonPropertyName("FadeInTime")] public float FadeInTime { get; set; } = -1f;
+            [JsonPropertyName("FadeOutTime")] public float FadeOutTime { get; set; } = -1f;
+            [JsonPropertyName("Segments")] public float[] Segments { get; set; }
         }
 
         public class SerializableUserData
         {
-            [JsonProperty("Time")] public float Time { get; set; }
-            [JsonProperty("Value")] public string Value { get; set; }
+            [JsonPropertyName("Time")] public float Time { get; set; }
+            [JsonPropertyName("Value")] public string Value { get; set; }
         }
 
         /// <summary>
@@ -67,13 +66,13 @@ namespace Live2D.Cubism.Framework.Json
         public static CubismMotion3Json LoadFrom(string jsonText)
         {
             if (string.IsNullOrEmpty(jsonText)) return null;
-            return JsonConvert.DeserializeObject<CubismMotion3Json>(jsonText);
+            return JsonSerializer.Deserialize(jsonText, CubismJsonContext.Default.CubismMotion3Json);
         }
 
         public static CubismMotion3Json LoadAtPath(string path)
         {
-            if (!File.Exists(path)) return null;
-            return LoadFrom(File.ReadAllText(path));
+            var text = CubismAssetIo.ReadAllText(path);
+            return text != null ? LoadFrom(text) : null;
         }
 
         /// <summary>

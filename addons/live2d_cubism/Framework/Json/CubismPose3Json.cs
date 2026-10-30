@@ -5,8 +5,8 @@
  * that can be found at https://www.live2d.com/eula/live2d-open-software-license-agreement_en.html.
  */
 
-using System.IO;
-using Newtonsoft.Json;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Live2D.Cubism.Framework.Json
 {
@@ -15,27 +15,27 @@ namespace Live2D.Cubism.Framework.Json
     /// </summary>
     public sealed class CubismPose3Json
     {
-        [JsonProperty("Type")] public string Type { get; set; }
-        [JsonProperty("FadeInTime")] public float FadeInTime { get; set; } = 0.5f;
+        [JsonPropertyName("Type")] public string Type { get; set; }
+        [JsonPropertyName("FadeInTime")] public float FadeInTime { get; set; } = 0.5f;
 
-        [JsonProperty("Groups")] public PoseGroup[][] Groups { get; set; }
+        [JsonPropertyName("Groups")] public PoseGroup[][] Groups { get; set; }
 
         public class PoseGroup
         {
-            [JsonProperty("Id")] public string Id { get; set; }
-            [JsonProperty("Link")] public string[] Link { get; set; }
+            [JsonPropertyName("Id")] public string Id { get; set; }
+            [JsonPropertyName("Link")] public string[] Link { get; set; }
         }
 
         public static CubismPose3Json LoadFrom(string jsonText)
         {
             if (string.IsNullOrEmpty(jsonText)) return null;
-            return JsonConvert.DeserializeObject<CubismPose3Json>(jsonText);
+            return JsonSerializer.Deserialize(jsonText, CubismJsonContext.Default.CubismPose3Json);
         }
 
         public static CubismPose3Json LoadAtPath(string path)
         {
-            if (!File.Exists(path)) return null;
-            return LoadFrom(File.ReadAllText(path));
+            var text = CubismAssetIo.ReadAllText(path);
+            return text != null ? LoadFrom(text) : null;
         }
     }
 }

@@ -6,11 +6,12 @@
  */
 
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Godot;
 using Live2D.Cubism.Core;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 
 namespace Live2D.Cubism.Framework.Json
 {
@@ -23,71 +24,74 @@ namespace Live2D.Cubism.Framework.Json
 
         public class FileReferencesData
         {
-            [JsonProperty("Moc")] public string Moc { get; set; }
-            [JsonProperty("Textures")] public string[] Textures { get; set; }
-            [JsonProperty("Physics")] public string Physics { get; set; }
-            [JsonProperty("Pose")] public string Pose { get; set; }
-            [JsonProperty("DisplayInfo")] public string DisplayInfo { get; set; }
-            [JsonProperty("UserData")] public string UserData { get; set; }
-            [JsonProperty("Expressions")] public ExpressionReference[] Expressions { get; set; }
+            [JsonPropertyName("Moc")] public string Moc { get; set; }
+            [JsonPropertyName("Textures")] public string[] Textures { get; set; }
+            [JsonPropertyName("Physics")] public string Physics { get; set; }
+            [JsonPropertyName("Pose")] public string Pose { get; set; }
+            [JsonPropertyName("DisplayInfo")] public string DisplayInfo { get; set; }
+            [JsonPropertyName("UserData")] public string UserData { get; set; }
+            [JsonPropertyName("Expressions")] public ExpressionReference[] Expressions { get; set; }
+            [JsonPropertyName("Motions")] public Dictionary<string, MotionReference[]> Motions { get; set; }
         }
 
         public class ExpressionReference
         {
-            [JsonProperty("Name")] public string Name { get; set; }
-            [JsonProperty("File")] public string File { get; set; }
+            [JsonPropertyName("Name")] public string Name { get; set; }
+            [JsonPropertyName("File")] public string File { get; set; }
         }
 
         public class GroupData
         {
-            [JsonProperty("Target")] public string Target { get; set; }
-            [JsonProperty("Name")] public string Name { get; set; }
-            [JsonProperty("Ids")] public string[] Ids { get; set; }
+            [JsonPropertyName("Target")] public string Target { get; set; }
+            [JsonPropertyName("Name")] public string Name { get; set; }
+            [JsonPropertyName("Ids")] public string[] Ids { get; set; }
         }
 
         public class HitAreaData
         {
-            [JsonProperty("Id")] public string Id { get; set; }
-            [JsonProperty("Name")] public string Name { get; set; }
+            [JsonPropertyName("Id")] public string Id { get; set; }
+            [JsonPropertyName("Name")] public string Name { get; set; }
         }
 
         public class MotionReference
         {
-            [JsonProperty("File")] public string File { get; set; }
-            [JsonProperty("Sound")] public string Sound { get; set; }
-            [JsonProperty("FadeInTime")] public float FadeInTime { get; set; } = -1f;
-            [JsonProperty("FadeOutTime")] public float FadeOutTime { get; set; } = -1f;
+            [JsonPropertyName("File")] public string File { get; set; }
+            [JsonPropertyName("Sound")] public string Sound { get; set; }
+            [JsonPropertyName("FadeInTime")] public float FadeInTime { get; set; } = -1f;
+            [JsonPropertyName("FadeOutTime")] public float FadeOutTime { get; set; } = -1f;
         }
 
         #endregion
 
-        public int Version { get; set; }
-        public FileReferencesData FileReferences { get; set; }
-        public GroupData[] Groups { get; set; }
-        public HitAreaData[] HitAreas { get; set; }
+        [JsonPropertyName("Version")] public int Version { get; set; }
+        [JsonPropertyName("FileReferences")] public FileReferencesData FileReferences { get; set; }
+        [JsonPropertyName("Groups")] public GroupData[] Groups { get; set; }
+        [JsonPropertyName("HitAreas")] public HitAreaData[] HitAreas { get; set; }
 
         /// <summary>
         /// Motion groups parsed from the JSON. Key = group name (e.g. "Idle", "TapBody").
         /// </summary>
-        public System.Collections.Generic.Dictionary<string, MotionReference[]> Motions { get; set; }
+        [JsonIgnore]
+        public Dictionary<string, MotionReference[]> Motions { get; set; }
 
+        [JsonIgnore]
         public string AssetPath { get; private set; }
         private string _basePath;
 
-        private CubismModel3Json() { }
+        public CubismModel3Json() { }
 
         /// <summary>
-        /// Loads a model3.json file from the filesystem.
+        /// Loads a model3.json file from Godot virtual paths (<c>res://</c>, <c>user://</c>) or OS filesystem.
         /// </summary>
         public static CubismModel3Json LoadAtPath(string path)
         {
-            if (!File.Exists(path))
+            var jsonText = CubismAssetIo.ReadAllText(path);
+            if (jsonText == null)
             {
                 GD.PrintErr($"[CubismModel3Json] File not found: {path}");
                 return null;
             }
 
-            var jsonText = File.ReadAllText(path);
             return LoadFromJson(jsonText, path);
         }
 
@@ -98,46 +102,22 @@ namespace Live2D.Cubism.Framework.Json
         {
             if (string.IsNullOrEmpty(jsonText)) return null;
 
-            var result = new CubismModel3Json();
+            var result = JsonSerializer.Deserialize(jsonText, CubismJsonContext.Default.CubismModel3Json);
+            if (result == null) return null;
+
             result.AssetPath = assetPath;
-            result._basePath = Path.GetDirectoryName(assetPath);
-
-            var root = JObject.Parse(jsonText);
-
-            result.Version = root["Version"]?.Value<int>() ?? 0;
-
-            // FileReferences
-            result.FileReferences = root["FileReferences"]?.ToObject<FileReferencesData>();
-
-            // Groups
-            result.Groups = root["Groups"]?.ToObject<GroupData[]>();
-
-            // HitAreas
-            result.HitAreas = root["HitAreas"]?.ToObject<HitAreaData[]>();
-
-            // Motions (special nested structure)
-            result.Motions = new System.Collections.Generic.Dictionary<string, MotionReference[]>();
-            var motionsToken = root["FileReferences"]?["Motions"];
-            if (motionsToken is JObject motionsObj)
-            {
-                foreach (var prop in motionsObj.Properties())
-                {
-                    var motionArray = prop.Value?.ToObject<MotionReference[]>();
-                    if (motionArray != null)
-                        result.Motions[prop.Name] = motionArray;
-                }
-            }
+            result._basePath = CubismAssetIo.GetDirectoryPath(assetPath);
+            result.Motions = result.FileReferences?.Motions ?? new Dictionary<string, MotionReference[]>();
 
             return result;
         }
 
         /// <summary>
-        /// Resolves a relative path from the model3.json to an absolute filesystem path.
+        /// Resolves a relative path from the model3.json to a Godot virtual or OS filesystem path.
         /// </summary>
         public string ResolvePath(string relativePath)
         {
-            if (string.IsNullOrEmpty(relativePath)) return null;
-            return Path.Combine(_basePath, relativePath);
+            return CubismAssetIo.CombinePath(_basePath, relativePath);
         }
 
         /// <summary>
@@ -146,12 +126,13 @@ namespace Live2D.Cubism.Framework.Json
         public byte[] LoadMoc3()
         {
             var mocPath = ResolvePath(FileReferences?.Moc);
-            if (mocPath == null || !File.Exists(mocPath))
+            var bytes = CubismAssetIo.ReadAllBytes(mocPath);
+            if (bytes == null)
             {
                 GD.PrintErr($"[CubismModel3Json] Moc file not found: {mocPath}");
                 return null;
             }
-            return File.ReadAllBytes(mocPath);
+            return bytes;
         }
 
         /// <summary>
@@ -165,24 +146,11 @@ namespace Live2D.Cubism.Framework.Json
             for (int i = 0; i < FileReferences.Textures.Length; i++)
             {
                 var texPath = ResolvePath(FileReferences.Textures[i]);
-                if (texPath != null && File.Exists(texPath))
+                if (texPath != null && CubismAssetIo.FileExists(texPath))
                 {
-                    var image = new Image();
-                    var err = image.Load(texPath);
-                    if (err == Error.Ok)
-                    {
-                        // Native LAppTextureManager uploads RGBA and calls glGenerateMipmap.
-                        // Keep straight (non-premultiplied) alpha; the shader premultiplies
-                        // like CubismCG.cginc / FragShaderSrc.frag.
-                        if (image.DetectAlpha() == Image.AlphaMode.None)
-                            image.Convert(Image.Format.Rgba8);
-                        image.GenerateMipmaps();
-                        textures[i] = ImageTexture.CreateFromImage(image);
-                    }
-                    else
-                    {
-                        GD.PrintErr($"[CubismModel3Json] Failed to load texture: {texPath} (error: {err})");
-                    }
+                    textures[i] = CubismAssetIo.LoadTexture2D(texPath);
+                    if (textures[i] == null)
+                        GD.PrintErr($"[CubismModel3Json] Failed to load texture: {texPath}");
                 }
                 else
                 {
@@ -198,7 +166,7 @@ namespace Live2D.Cubism.Framework.Json
         public CubismPhysics3Json LoadPhysics3Json()
         {
             var path = ResolvePath(FileReferences?.Physics);
-            if (path == null || !File.Exists(path)) return null;
+            if (path == null || !CubismAssetIo.FileExists(path)) return null;
             return CubismPhysics3Json.LoadAtPath(path);
         }
 
@@ -208,7 +176,7 @@ namespace Live2D.Cubism.Framework.Json
         public CubismPose3Json LoadPose3Json()
         {
             var path = ResolvePath(FileReferences?.Pose);
-            if (path == null || !File.Exists(path)) return null;
+            if (path == null || !CubismAssetIo.FileExists(path)) return null;
             return CubismPose3Json.LoadAtPath(path);
         }
 
@@ -218,7 +186,7 @@ namespace Live2D.Cubism.Framework.Json
         public CubismUserData3Json LoadUserData3Json()
         {
             var path = ResolvePath(FileReferences?.UserData);
-            if (path == null || !File.Exists(path)) return null;
+            if (path == null || !CubismAssetIo.FileExists(path)) return null;
             return CubismUserData3Json.LoadAtPath(path);
         }
 

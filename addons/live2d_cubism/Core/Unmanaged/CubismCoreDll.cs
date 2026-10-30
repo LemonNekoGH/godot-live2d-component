@@ -32,20 +32,101 @@ namespace Live2D.Cubism.Core.Unmanaged
                     ? "libLive2DCubismCore.dylib"
                     : "libLive2DCubismCore.so";
 
-            string[] candidates =
+            var envOverride = Environment.GetEnvironmentVariable("CUBISM_CORE_LIBRARY_PATH");
+            if (!string.IsNullOrEmpty(envOverride))
             {
-                Path.Combine(AppContext.BaseDirectory, fileName),
-                Path.Combine(Environment.CurrentDirectory, "native", fileName),
-                Path.Combine(AppContext.BaseDirectory, "native", fileName),
+                if (File.Exists(envOverride) && NativeLibrary.TryLoad(envOverride, out IntPtr envHandle))
+                    return envHandle;
+                var envFile = Path.Combine(envOverride, fileName);
+                if (File.Exists(envFile) && NativeLibrary.TryLoad(envFile, out envHandle))
+                    return envHandle;
+            }
+
+            var osFolders = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+                ? new[] { "windows", "win64", "win" }
+                : RuntimeInformation.IsOSPlatform(OSPlatform.OSX)
+                    ? new[] { "macos", "osx", "mac" }
+                    : new[] { "linux", "android" };
+
+            var archFolders = RuntimeInformation.ProcessArchitecture switch
+            {
+                Architecture.Arm64 => new[] { "arm64", "aarch64", "arm64-v8a", "universal" },
+                Architecture.X64 => new[] { "x86_64", "x64", "universal" },
+                Architecture.X86 => new[] { "x86" },
+                _ => new[] { "universal" },
             };
 
-            foreach (string candidate in candidates)
+            var baseDirs = new System.Collections.Generic.List<string>();
+            TryAddGodotPaths(baseDirs);
+            if (!string.IsNullOrEmpty(AppContext.BaseDirectory))
+                baseDirs.Add(AppContext.BaseDirectory);
+            if (!string.IsNullOrEmpty(Environment.CurrentDirectory))
+                baseDirs.Add(Environment.CurrentDirectory);
+
+            string[] relativePrefixes =
             {
-                if (File.Exists(candidate) && NativeLibrary.TryLoad(candidate, out IntPtr handle))
-                    return handle;
+                "",
+                "../Frameworks",
+                "native",
+                "addons/live2d_cubism/native",
+                "addons/live2d_cubism/vendor",
+                "addons/kirie_live2d/native",
+                "addons/kirie_live2d/vendor",
+            };
+
+            foreach (var baseDir in baseDirs)
+            {
+                foreach (var prefix in relativePrefixes)
+                {
+                    var root = string.IsNullOrEmpty(prefix) ? baseDir : Path.Combine(baseDir, prefix);
+
+                    var direct = Path.Combine(root, fileName);
+                    if (File.Exists(direct) && NativeLibrary.TryLoad(direct, out IntPtr handle))
+                        return handle;
+
+                    foreach (var arch in archFolders)
+                    {
+                        var byArch = Path.Combine(root, arch, fileName);
+                        if (File.Exists(byArch) && NativeLibrary.TryLoad(byArch, out handle))
+                            return handle;
+                    }
+
+                    foreach (var os in osFolders)
+                    {
+                        var byOs = Path.Combine(root, os, fileName);
+                        if (File.Exists(byOs) && NativeLibrary.TryLoad(byOs, out handle))
+                            return handle;
+
+                        foreach (var arch in archFolders)
+                        {
+                            var byOsArch = Path.Combine(root, os, arch, fileName);
+                            if (File.Exists(byOsArch) && NativeLibrary.TryLoad(byOsArch, out handle))
+                                return handle;
+                        }
+                    }
+                }
             }
 
             return IntPtr.Zero;
+        }
+
+        private static void TryAddGodotPaths(System.Collections.Generic.List<string> baseDirs)
+        {
+            try
+            {
+                var resRoot = Godot.ProjectSettings.GlobalizePath("res://");
+                if (!string.IsNullOrEmpty(resRoot) && Directory.Exists(resRoot))
+                    baseDirs.Add(resRoot);
+
+                var exePath = Godot.OS.GetExecutablePath();
+                var exeDir = !string.IsNullOrEmpty(exePath) ? Path.GetDirectoryName(exePath) : null;
+                if (!string.IsNullOrEmpty(exeDir) && Directory.Exists(exeDir))
+                    baseDirs.Add(exeDir);
+            }
+            catch
+            {
+                // Ignore if Godot runtime is not initialized (e.g. standalone test runner)
+            }
         }
 
         public const int AlignofMoc = 64;

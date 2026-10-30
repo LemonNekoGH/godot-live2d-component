@@ -206,7 +206,7 @@ namespace Live2D.Cubism.Rendering
                 {
                     var expRef = ModelJson.FileReferences.Expressions[i];
                     var expPath = ModelJson.ResolvePath(expRef.File);
-                    if (expPath != null && File.Exists(expPath))
+                    if (expPath != null && CubismAssetIo.FileExists(expPath))
                     {
                         expJsons[i] = CubismExp3Json.LoadAtPath(expPath);
                         if (expJsons[i] != null && string.IsNullOrEmpty(expJsons[i].Name))

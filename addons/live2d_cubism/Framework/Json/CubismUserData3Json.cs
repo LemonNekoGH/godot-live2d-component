@@ -5,8 +5,8 @@
  * that can be found at https://www.live2d.com/eula/live2d-open-software-license-agreement_en.html.
  */
 
-using System.IO;
-using Newtonsoft.Json;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Live2D.Cubism.Framework.Json
 {
@@ -15,33 +15,33 @@ namespace Live2D.Cubism.Framework.Json
     /// </summary>
     public sealed class CubismUserData3Json
     {
-        [JsonProperty("Version")] public int Version { get; set; }
-        [JsonProperty("Meta")] public UserDataMeta Meta { get; set; }
-        [JsonProperty("UserData")] public UserDataEntry[] UserData { get; set; }
+        [JsonPropertyName("Version")] public int Version { get; set; }
+        [JsonPropertyName("Meta")] public UserDataMeta Meta { get; set; }
+        [JsonPropertyName("UserData")] public UserDataEntry[] UserData { get; set; }
 
         public class UserDataMeta
         {
-            [JsonProperty("UserDataCount")] public int UserDataCount { get; set; }
-            [JsonProperty("TotalUserDataSize")] public int TotalUserDataSize { get; set; }
+            [JsonPropertyName("UserDataCount")] public int UserDataCount { get; set; }
+            [JsonPropertyName("TotalUserDataSize")] public int TotalUserDataSize { get; set; }
         }
 
         public class UserDataEntry
         {
-            [JsonProperty("Target")] public string Target { get; set; }
-            [JsonProperty("Id")] public string Id { get; set; }
-            [JsonProperty("Value")] public string Value { get; set; }
+            [JsonPropertyName("Target")] public string Target { get; set; }
+            [JsonPropertyName("Id")] public string Id { get; set; }
+            [JsonPropertyName("Value")] public string Value { get; set; }
         }
 
         public static CubismUserData3Json LoadFrom(string jsonText)
         {
             if (string.IsNullOrEmpty(jsonText)) return null;
-            return JsonConvert.DeserializeObject<CubismUserData3Json>(jsonText);
+            return JsonSerializer.Deserialize(jsonText, CubismJsonContext.Default.CubismUserData3Json);
         }
 
         public static CubismUserData3Json LoadAtPath(string path)
         {
-            if (!File.Exists(path)) return null;
-            return LoadFrom(File.ReadAllText(path));
+            var text = CubismAssetIo.ReadAllText(path);
+            return text != null ? LoadFrom(text) : null;
         }
     }
 }

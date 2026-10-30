@@ -49,6 +49,7 @@ namespace Live2D.Cubism.Tests
             allPassed &= TestUnityLoopWrapAndPartOpacity();
             allPassed &= TestExpressionCrossFadeAndNameLookup();
             allPassed &= TestRaycasterPointInMesh();
+            allPassed &= TestSystemTextJsonAndVirtualPaths();
 
             if (allPassed)
                 GD.Print("[TESTS] All golden-value math tests PASSED");
@@ -817,6 +818,72 @@ namespace Live2D.Cubism.Tests
                 return false;
             }
             GD.Print("  PASS PointInMesh inside=true, outside=false");
+            return true;
+        }
+
+        static bool TestSystemTextJsonAndVirtualPaths()
+        {
+            GD.Print("[TEST] System.Text.Json Deserialization & Godot Virtual Paths");
+            const string sampleModel3 = @"{
+                ""Version"": 3,
+                ""FileReferences"": {
+                    ""Moc"": ""Hiyori.moc3"",
+                    ""Textures"": [""Hiyori.2048/texture_00.png""],
+                    ""Physics"": ""Hiyori.physics3.json"",
+                    ""Pose"": ""Hiyori.pose3.json"",
+                    ""Expressions"": [
+                        { ""Name"": ""Smile"", ""File"": ""expressions/Smile.exp3.json"" }
+                    ],
+                    ""Motions"": {
+                        ""Idle"": [
+                            { ""File"": ""motions/Idle_0.motion3.json"", ""FadeInTime"": 0.5, ""FadeOutTime"": 0.5 }
+                        ]
+                    }
+                },
+                ""Groups"": [
+                    { ""Target"": ""Parameter"", ""Name"": ""EyeBlink"", ""Ids"": [""ParamEyeLOpen"", ""ParamEyeROpen""] }
+                ],
+                ""HitAreas"": [
+                    { ""Id"": ""HitAreaHead"", ""Name"": ""Head"" }
+                ]
+            }";
+
+            var modelJson = CubismModel3Json.LoadFromJson(sampleModel3, "res://demo/models/Hiyori/Hiyori.model3.json");
+            if (modelJson == null || modelJson.Version != 3)
+            {
+                GD.PrintErr("  FAIL CubismModel3Json.LoadFromJson returned null or wrong version");
+                return false;
+            }
+
+            var resolvedMoc = modelJson.ResolvePath(modelJson.FileReferences?.Moc);
+            if (resolvedMoc != "res://demo/models/Hiyori/Hiyori.moc3")
+            {
+                GD.PrintErr($"  FAIL ResolvePath expected res://demo/models/Hiyori/Hiyori.moc3, got {resolvedMoc}");
+                return false;
+            }
+
+            if (modelJson.Motions == null || !modelJson.Motions.ContainsKey("Idle") || modelJson.Motions["Idle"].Length != 1)
+            {
+                GD.PrintErr("  FAIL Motions dictionary not parsed");
+                return false;
+            }
+
+            var blinkIds = modelJson.GetGroupIds("EyeBlink");
+            if (blinkIds.Length != 2 || blinkIds[0] != "ParamEyeLOpen")
+            {
+                GD.PrintErr("  FAIL EyeBlink group not parsed");
+                return false;
+            }
+
+            // Also verify reading a real res:// file via CubismAssetIo
+            var projectText = CubismAssetIo.ReadAllText("res://project.godot");
+            if (string.IsNullOrEmpty(projectText))
+            {
+                GD.PrintErr("  FAIL CubismAssetIo.ReadAllText(res://project.godot) returned empty");
+                return false;
+            }
+
+            GD.Print("  PASS System.Text.Json & res:// virtual path resolution");
             return true;
         }
     }
