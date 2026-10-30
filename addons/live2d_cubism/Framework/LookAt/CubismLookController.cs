@@ -65,20 +65,21 @@ namespace Live2D.Cubism.Framework.LookAt
 
             var targetDir = TargetPosition - CenterPosition;
 
-            // Damping (same as Unity's Mathf.Lerp-based damping)
-            var t = 1f - Mathf.Pow(Damping, deltaTime);
-            _lastPosition = _lastPosition.Lerp(targetDir, t);
+            // Smooth damping with Damping as time constant in seconds (mirrors Unity SmoothDamp(Damping))
+            var t = Damping <= 0.0001f ? 1f : (1f - Mathf.Exp(-deltaTime / Damping));
+            _lastPosition = _lastPosition.Lerp(targetDir, Mathf.Clamp(t, 0f, 1f));
 
             foreach (var lp in LookParameters)
             {
                 var param = FindParameter(lp.ParameterId);
                 if (param == null) continue;
 
+                // Mirrors Unity CubismLookParameter.TickAndEvaluate: Axis.Z uses X * Y when Z is 0
                 float value = lp.Axis switch
                 {
                     CubismLookAxis.X => _lastPosition.X * lp.Factor,
                     CubismLookAxis.Y => _lastPosition.Y * lp.Factor,
-                    CubismLookAxis.Z => _lastPosition.Z * lp.Factor,
+                    CubismLookAxis.Z => (_lastPosition.Z != 0f ? _lastPosition.Z : _lastPosition.X * _lastPosition.Y) * lp.Factor,
                     _ => 0f
                 };
 

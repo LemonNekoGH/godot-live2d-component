@@ -223,12 +223,16 @@ namespace Live2D.Cubism.Rendering
             // Eye blink
             EyeBlinkController = new CubismEyeBlinkController();
             var blinkIds = ModelJson.GetGroupIds("EyeBlink");
+            if (blinkIds.Length == 0 && Model.FindParameter("ParamEyeLOpen") != null && Model.FindParameter("ParamEyeROpen") != null)
+                blinkIds = new[] { "ParamEyeLOpen", "ParamEyeROpen" };
             EyeBlinkController.EyeBlinkParameterIds = blinkIds;
             EyeBlinkController.SetParameters(Model.Parameters);
 
             // Mouth
             MouthController = new CubismMouthController();
             var lipSyncIds = ModelJson.GetGroupIds("LipSync");
+            if (lipSyncIds.Length == 0 && Model.FindParameter("ParamMouthOpenY") != null)
+                lipSyncIds = new[] { "ParamMouthOpenY" };
             MouthController.MouthParameterIds = lipSyncIds;
             MouthController.SetParameters(Model.Parameters);
 
@@ -241,10 +245,14 @@ namespace Live2D.Cubism.Rendering
             {
                 new CubismLookParameter { ParameterId = "ParamAngleX", Axis = CubismLookAxis.X, Factor = 30f },
                 new CubismLookParameter { ParameterId = "ParamAngleY", Axis = CubismLookAxis.Y, Factor = 30f },
-                new CubismLookParameter { ParameterId = "ParamAngleZ", Axis = CubismLookAxis.Z, Factor = 30f },
+                new CubismLookParameter { ParameterId = "ParamAngleZ", Axis = CubismLookAxis.Z, Factor = -25f },
                 new CubismLookParameter { ParameterId = "ParamEyeBallX", Axis = CubismLookAxis.X, Factor = 1f },
                 new CubismLookParameter { ParameterId = "ParamEyeBallY", Axis = CubismLookAxis.Y, Factor = 1f },
                 new CubismLookParameter { ParameterId = "ParamBodyAngleX", Axis = CubismLookAxis.X, Factor = 10f },
+                new CubismLookParameter { ParameterId = "ParamBodyAngleY", Axis = CubismLookAxis.Y, Factor = 10f },
+                new CubismLookParameter { ParameterId = "ParamBodyAngleZ", Axis = CubismLookAxis.Z, Factor = 10f },
+                new CubismLookParameter { ParameterId = "ParamEarLeft", Axis = CubismLookAxis.Y, Factor = 0.8f },
+                new CubismLookParameter { ParameterId = "ParamEarRight", Axis = CubismLookAxis.Y, Factor = 0.8f },
             };
             LookController.BlendMode = CubismParameterBlendMode.Override;
 

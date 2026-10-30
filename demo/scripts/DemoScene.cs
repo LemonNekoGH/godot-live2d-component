@@ -80,15 +80,21 @@ namespace Live2D.Cubism.Demo
 
             string foundPath = null;
 
-            if (!string.IsNullOrEmpty(ModelPath) && System.IO.File.Exists(ModelPath))
+            if (!string.IsNullOrEmpty(ModelPath))
             {
-                foundPath = ModelPath;
+                var projPath = ProjectSettings.GlobalizePath($"res://{ModelPath}");
+                if (System.IO.File.Exists(ModelPath))
+                    foundPath = System.IO.Path.GetFullPath(ModelPath);
+                else if (System.IO.File.Exists(projPath))
+                    foundPath = projPath;
             }
-            else
+
+            if (foundPath == null)
             {
                 var defaultPaths = new[]
                 {
                     "demo/models/Hiyori/Hiyori.model3.json",
+                    "demo/models/Senko/senko.model3.json",
                     "demo/models/Haru/Haru.model3.json",
                     "demo/models/Mark/Mark.model3.json",
                 };
@@ -151,6 +157,56 @@ namespace Live2D.Cubism.Demo
                 var fitScale = (viewSize.Y * 0.92f) / modelHeight;
                 _modelNode.Scale = new Vector2(fitScale, fitScale);
                 _modelNode.Position = new Vector2(viewSize.X / 2f, viewSize.Y * 0.47f);
+
+                float minY = float.MaxValue, maxY = float.MinValue;
+                float ppu = _modelNode.Model.PixelsPerUnit > 0f ? _modelNode.Model.PixelsPerUnit : 1f;
+                var vbuf = System.Array.Empty<Vector2>();
+                for (int di = 0; di < _modelNode.Model.Drawables.Length; di++)
+                {
+                    var d = _modelNode.Model.Drawables[di];
+                    if (!d.IsVisible || d.Opacity <= 0.01f) continue;
+                    int vc = _modelNode.Model.FillDrawableVertexPositions(di, ref vbuf, ppu);
+                    for (int vi = 0; vi < vc; vi++)
+                    {
+                        var py = vbuf[vi].Y;
+                        if (py < minY) minY = py;
+                        if (py > maxY) maxY = py;
+                    }
+                }
+                float meshHeight = (maxY > minY) ? (maxY - minY) : modelHeight;
+                if (meshHeight > 100f && meshHeight < modelHeight * 0.75f)
+                {
+                    fitScale = (viewSize.Y * 0.84f) / meshHeight;
+                    var centerY = (minY + maxY) * 0.5f;
+                    _modelNode.Scale = new Vector2(fitScale, fitScale);
+                    _modelNode.Position = new Vector2(viewSize.X / 2f, viewSize.Y * 0.52f - centerY * fitScale);
+                }
+
+                if (_modelNode.ModelJson?.HitAreas != null)
+                {
+                    foreach (var ha in _modelNode.ModelJson.HitAreas)
+                    {
+                        for (int di = 0; di < _modelNode.Model.Drawables.Length; di++)
+                        {
+                            if (_modelNode.Model.Drawables[di].Id != ha.Id) continue;
+                            int vc = _modelNode.Model.FillDrawableVertexPositions(di, ref vbuf, ppu);
+                            if (vc > 0)
+                            {
+                                float hx0 = float.MaxValue, hx1 = float.MinValue, hy0 = float.MaxValue, hy1 = float.MinValue;
+                                for (int vi = 0; vi < vc; vi++)
+                                {
+                                    var gp = _modelNode.ToGlobal(vbuf[vi]);
+                                    if (gp.X < hx0) hx0 = gp.X;
+                                    if (gp.X > hx1) hx1 = gp.X;
+                                    if (gp.Y < hy0) hy0 = gp.Y;
+                                    if (gp.Y > hy1) hy1 = gp.Y;
+                                }
+                                GD.Print($"[HitArea] {ha.Name} ({ha.Id}) global rect: x=[{hx0:F0}..{hx1:F0}], y=[{hy0:F0}..{hy1:F0}], center=({(hx0+hx1)*0.5f:F0}, {(hy0+hy1)*0.5f:F0})");
+                            }
+                            break;
+                        }
+                    }
+                }
                 _modelNode.IsolateDrawableIndex = _isolateDrawable;
 
                 EnsureDemoExpressions();
@@ -182,15 +238,18 @@ namespace Live2D.Cubism.Demo
             {
                 Name = "Smile",
                 Type = "Live2D Expression",
-                // 2s fade so Movie Maker / 0.25s frame extracts show the
-                // CubismExpressionController weight ramp, not a single-step snap.
-                FadeInTime = 2.0f,
-                FadeOutTime = 0.4f,
+                // 2s fade in expression mode so Movie Maker / 0.25s frame extracts show the
+                // CubismExpressionController weight ramp; 0.35f in interactive mode.
+                FadeInTime = _demoMode == "expression" ? 2.0f : 0.35f,
+                FadeOutTime = 0.35f,
                 Parameters = new[]
                 {
                     new Live2D.Cubism.Framework.Json.CubismExp3Json.SerializableExpressionParameter
                     {
-                        Id = "ParamMouthForm", Value = 1f, Blend = "Add"
+                        Id = "ParamMouthForm", Value = 1f, Blend = "Overwrite"},
+                    new Live2D.Cubism.Framework.Json.CubismExp3Json.SerializableExpressionParameter
+                    {
+                        Id = "ParamMouthOpenY", Value = 0f, Blend = "Overwrite"
                     },
                     new Live2D.Cubism.Framework.Json.CubismExp3Json.SerializableExpressionParameter
                     {
@@ -199,6 +258,22 @@ namespace Live2D.Cubism.Demo
                     new Live2D.Cubism.Framework.Json.CubismExp3Json.SerializableExpressionParameter
                     {
                         Id = "ParamEyeRSmile", Value = 1f, Blend = "Add"
+                    },
+                    new Live2D.Cubism.Framework.Json.CubismExp3Json.SerializableExpressionParameter
+                    {
+                        Id = "ParamCheek", Value = 1f, Blend = "Add"
+                    },
+                    new Live2D.Cubism.Framework.Json.CubismExp3Json.SerializableExpressionParameter
+                    {
+                        Id = "ParamFang", Value = 1f, Blend = "Add"
+                    },
+                    new Live2D.Cubism.Framework.Json.CubismExp3Json.SerializableExpressionParameter
+                    {
+                        Id = "ParamEarLeft", Value = 1f, Blend = "Add"
+                    },
+                    new Live2D.Cubism.Framework.Json.CubismExp3Json.SerializableExpressionParameter
+                    {
+                        Id = "ParamEarRight", Value = 1f, Blend = "Add"
                     },
                     new Live2D.Cubism.Framework.Json.CubismExp3Json.SerializableExpressionParameter
                     {
@@ -225,6 +300,34 @@ namespace Live2D.Cubism.Demo
                     new Live2D.Cubism.Framework.Json.CubismExp3Json.SerializableExpressionParameter
                     {
                         Id = "ParamEyeROpen", Value = 1.3f, Blend = "Multiply"
+                    },
+                    new Live2D.Cubism.Framework.Json.CubismExp3Json.SerializableExpressionParameter
+                    {
+                        Id = "ParamEyeLSmile", Value = 0f, Blend = "Overwrite"
+                    },
+                    new Live2D.Cubism.Framework.Json.CubismExp3Json.SerializableExpressionParameter
+                    {
+                        Id = "ParamEyeRSmile", Value = 0f, Blend = "Overwrite"
+                    },
+                    new Live2D.Cubism.Framework.Json.CubismExp3Json.SerializableExpressionParameter
+                    {
+                        Id = "ParamCatEye", Value = 1f, Blend = "Add"
+                    },
+                    new Live2D.Cubism.Framework.Json.CubismExp3Json.SerializableExpressionParameter
+                    {
+                        Id = "ParamShock", Value = 1f, Blend = "Add"
+                    },
+                    new Live2D.Cubism.Framework.Json.CubismExp3Json.SerializableExpressionParameter
+                    {
+                        Id = "ParamSweatVisible", Value = 1f, Blend = "Add"
+                    },
+                    new Live2D.Cubism.Framework.Json.CubismExp3Json.SerializableExpressionParameter
+                    {
+                        Id = "ParamEarLeft", Value = -1f, Blend = "Add"
+                    },
+                    new Live2D.Cubism.Framework.Json.CubismExp3Json.SerializableExpressionParameter
+                    {
+                        Id = "ParamEarRight", Value = -1f, Blend = "Add"
                     },
                     new Live2D.Cubism.Framework.Json.CubismExp3Json.SerializableExpressionParameter
                     {
@@ -324,7 +427,8 @@ namespace Live2D.Cubism.Demo
                     break;
                 case "all":
                     _modelNode.EnableFrameworkUpdate = true;
-                    _modelNode.PlayMotionFromGroup("Idle", 0, CubismMotionPriority.PriorityIdle, true);
+                    if (_modelNode.Model?.Name == "Hiyori")
+                        _modelNode.PlayMotionFromGroup("Idle", 0, CubismMotionPriority.PriorityIdle, true);
                     break;
                 default:
                     _modelNode.EnableFrameworkUpdate = false;
@@ -424,8 +528,10 @@ namespace Live2D.Cubism.Demo
                 if (viewRect.X > 1f && viewRect.Y > 1f)
                 {
                     var mouse = GetViewport().GetMousePosition();
-                    var normX = Mathf.Clamp((mouse.X / viewRect.X) * 2f - 1f, -1f, 1f);
-                    var normY = Mathf.Clamp(1f - (mouse.Y / viewRect.Y) * 2f, -1f, 1f);
+                    var center = new Vector2(viewRect.X * 0.5f, viewRect.Y * 0.38f);
+                    var radius = viewRect.Y * 0.35f;
+                    var normX = Mathf.Clamp((mouse.X - center.X) / radius, -1f, 1f);
+                    var normY = Mathf.Clamp((center.Y - mouse.Y) / radius, -1f, 1f);
                     _modelNode.SetLookTarget(new Vector2(normX, normY));
                 }
             }
@@ -469,6 +575,21 @@ namespace Live2D.Cubism.Demo
             GD.Print($"Screenshot saved: {path} ({err})");
         }
 
+        private void PlayTapMotion()
+        {
+            if (_modelNode?.ModelJson?.Motions == null) return;
+            foreach (var group in new[] { "TapBody", "Taphead", "Tap" })
+            {
+                if (_modelNode.ModelJson.Motions.TryGetValue(group, out var list) && list != null && list.Length > 0)
+                {
+                    if (_modelNode.LookController != null)
+                        _modelNode.LookController.BlendMode = Live2D.Cubism.Framework.CubismParameterBlendMode.Additive;
+                    _modelNode.PlayMotionFromGroup(group, 0, CubismMotionPriority.PriorityNormal);
+                    return;
+                }
+            }
+        }
+
         public override void _Input(InputEvent @event)
         {
             if (@event is InputEventMouseButton mouseButton &&
@@ -484,7 +605,7 @@ namespace Live2D.Cubism.Demo
                         names[i] = !string.IsNullOrEmpty(hits[i].HitAreaName) ? hits[i].HitAreaName : hits[i].Drawable.Id;
                     _lastHitAreas = string.Join(", ", names);
                     GD.Print($"[Raycast] Hit at {mouseButton.Position}: {_lastHitAreas}");
-                    _modelNode.PlayMotionFromGroup("TapBody", 0, CubismMotionPriority.PriorityNormal);
+                    PlayTapMotion();
                 }
                 else
                 {
@@ -498,16 +619,22 @@ namespace Live2D.Cubism.Demo
                 switch (keyEvent.Keycode)
                 {
                     case Key.Key1:
+                        _modelNode?.MotionController?.StopAll();
+                        if (_modelNode?.LookController != null)
+                            _modelNode.LookController.BlendMode = Live2D.Cubism.Framework.CubismParameterBlendMode.Override;
                         _modelNode?.StartExpression(0);
                         break;
                     case Key.Key2:
+                        _modelNode?.MotionController?.StopAll();
+                        if (_modelNode?.LookController != null)
+                            _modelNode.LookController.BlendMode = Live2D.Cubism.Framework.CubismParameterBlendMode.Override;
                         _modelNode?.StartExpression(1);
                         break;
                     case Key.Key3:
                         _modelNode?.StartExpression(-1);
                         break;
                     case Key.Space:
-                        _modelNode?.PlayMotionFromGroup("TapBody", 0, CubismMotionPriority.PriorityNormal);
+                        PlayTapMotion();
                         break;
                     case Key.F:
                         if (_modelNode != null)
