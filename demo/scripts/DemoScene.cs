@@ -26,7 +26,8 @@ namespace Live2D.Cubism.Demo
         private ColorRect _background;
         private float _time;
         private bool _testsRun;
-        private string _demoMode = "static";
+        private string _demoMode = "all";
+        private string _lastHitAreas = "-";
         private string _screenshotPath;
         private float _quitAfter = -1f;
         private bool _screenshotTaken;
@@ -52,7 +53,7 @@ namespace Live2D.Cubism.Demo
 
             _demoMode = OS.GetEnvironment("CUBISM_DEMO_MODE");
             if (string.IsNullOrEmpty(_demoMode))
-                _demoMode = "static";
+                _demoMode = "all";
             var envModel = OS.GetEnvironment("CUBISM_MODEL");
             if (!string.IsNullOrEmpty(envModel))
                 ModelPath = envModel;
@@ -179,6 +180,7 @@ namespace Live2D.Cubism.Demo
             // the same way CubismExp3Json would, so the expression controller can be demoed.
             var smile = new Live2D.Cubism.Framework.Json.CubismExp3Json
             {
+                Name = "Smile",
                 Type = "Live2D Expression",
                 // 2s fade so Movie Maker / 0.25s frame extracts show the
                 // CubismExpressionController weight ramp, not a single-step snap.
@@ -208,7 +210,41 @@ namespace Live2D.Cubism.Demo
                     },
                 }
             };
-            _modelNode.ExpressionController.Expressions = new[] { smile };
+            var surprised = new Live2D.Cubism.Framework.Json.CubismExp3Json
+            {
+                Name = "Surprised",
+                Type = "Live2D Expression",
+                FadeInTime = 0.35f,
+                FadeOutTime = 0.35f,
+                Parameters = new[]
+                {
+                    new Live2D.Cubism.Framework.Json.CubismExp3Json.SerializableExpressionParameter
+                    {
+                        Id = "ParamEyeLOpen", Value = 1.3f, Blend = "Multiply"
+                    },
+                    new Live2D.Cubism.Framework.Json.CubismExp3Json.SerializableExpressionParameter
+                    {
+                        Id = "ParamEyeROpen", Value = 1.3f, Blend = "Multiply"
+                    },
+                    new Live2D.Cubism.Framework.Json.CubismExp3Json.SerializableExpressionParameter
+                    {
+                        Id = "ParamMouthForm", Value = -0.8f, Blend = "Overwrite"
+                    },
+                    new Live2D.Cubism.Framework.Json.CubismExp3Json.SerializableExpressionParameter
+                    {
+                        Id = "ParamMouthOpenY", Value = 0.75f, Blend = "Add"
+                    },
+                    new Live2D.Cubism.Framework.Json.CubismExp3Json.SerializableExpressionParameter
+                    {
+                        Id = "ParamBrowLY", Value = 0.8f, Blend = "Add"
+                    },
+                    new Live2D.Cubism.Framework.Json.CubismExp3Json.SerializableExpressionParameter
+                    {
+                        Id = "ParamBrowRY", Value = 0.8f, Blend = "Add"
+                    },
+                }
+            };
+            _modelNode.ExpressionController.Expressions = new[] { smile, surprised };
         }
 
         private void ApplyDemoMode()
@@ -382,6 +418,18 @@ namespace Live2D.Cubism.Demo
                 _modelNode.ForceAlphaBlend = Mathf.Clamp((int)(_time / 1.6f), 0, 4);
             }
 
+            if (_demoMode == "all" && _modelNode != null)
+            {
+                var viewRect = GetViewportRect().Size;
+                if (viewRect.X > 1f && viewRect.Y > 1f)
+                {
+                    var mouse = GetViewport().GetMousePosition();
+                    var normX = Mathf.Clamp((mouse.X / viewRect.X) * 2f - 1f, -1f, 1f);
+                    var normY = Mathf.Clamp(1f - (mouse.Y / viewRect.Y) * 2f, -1f, 1f);
+                    _modelNode.SetLookTarget(new Vector2(normX, normY));
+                }
+            }
+
             if (_modelNode?.Model != null)
             {
                 _infoLabel.Text = $"Model: {_modelNode.Model.Name}\n" +
@@ -389,6 +437,7 @@ namespace Live2D.Cubism.Demo
                                   $"Parameters: {_modelNode.Model.Parameters.Length}\n" +
                                   $"Parts: {_modelNode.Model.Parts.Length}\n" +
                                   $"Drawables: {_modelNode.Model.Drawables.Length}\n" +
+                                  $"Hit: {_lastHitAreas}\n" +
                                   $"FPS: {Engine.GetFramesPerSecond()}\n" +
                                   $"Time: {_time:F1}s";
             }
@@ -422,6 +471,28 @@ namespace Live2D.Cubism.Demo
 
         public override void _Input(InputEvent @event)
         {
+            if (@event is InputEventMouseButton mouseButton &&
+                mouseButton.Pressed &&
+                mouseButton.ButtonIndex == MouseButton.Left &&
+                _modelNode != null)
+            {
+                var hits = _modelNode.RaycastGlobal(mouseButton.Position);
+                if (hits != null && hits.Length > 0)
+                {
+                    var names = new string[hits.Length];
+                    for (int i = 0; i < hits.Length; i++)
+                        names[i] = !string.IsNullOrEmpty(hits[i].HitAreaName) ? hits[i].HitAreaName : hits[i].Drawable.Id;
+                    _lastHitAreas = string.Join(", ", names);
+                    GD.Print($"[Raycast] Hit at {mouseButton.Position}: {_lastHitAreas}");
+                    _modelNode.PlayMotionFromGroup("TapBody", 0, CubismMotionPriority.PriorityNormal);
+                }
+                else
+                {
+                    _lastHitAreas = "None";
+                    GD.Print($"[Raycast] Miss at {mouseButton.Position}");
+                }
+            }
+
             if (@event is InputEventKey keyEvent && keyEvent.Pressed)
             {
                 switch (keyEvent.Keycode)
@@ -433,7 +504,7 @@ namespace Live2D.Cubism.Demo
                         _modelNode?.StartExpression(1);
                         break;
                     case Key.Key3:
-                        _modelNode?.StartExpression(2);
+                        _modelNode?.StartExpression(-1);
                         break;
                     case Key.Space:
                         _modelNode?.PlayMotionFromGroup("TapBody", 0, CubismMotionPriority.PriorityNormal);
