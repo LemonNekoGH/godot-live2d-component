@@ -79,10 +79,34 @@ namespace Live2D.Cubism.Rendering
         }
 
         /// <summary>
+        /// Unloads the current model, freeing unmanaged Cubism resources and child renderer nodes.
+        /// </summary>
+        public void UnloadModel()
+        {
+            _initialized = false;
+
+            foreach (var child in GetChildren())
+            {
+                RemoveChild(child);
+                child.QueueFree();
+            }
+
+            _drawableRenderers = null;
+            _maskController = null;
+            _textures = null;
+
+            Model?.Dispose();
+            Model = null;
+            ModelJson = null;
+        }
+
+        /// <summary>
         /// Loads a model from a model3.json path.
         /// </summary>
         public bool LoadModel(string modelJsonPath)
         {
+            UnloadModel();
+
             try
             {
                 ModelJson = CubismModel3Json.LoadAtPath(modelJsonPath);
@@ -121,6 +145,7 @@ namespace Live2D.Cubism.Rendering
             catch (Exception e)
             {
                 GD.PrintErr($"[CubismModelNode] Error loading model: {e.Message}\n{e.StackTrace}");
+                UnloadModel();
                 return false;
             }
         }
@@ -130,6 +155,7 @@ namespace Live2D.Cubism.Rendering
             // Clear existing children
             foreach (var child in GetChildren())
             {
+                RemoveChild(child);
                 child.QueueFree();
             }
 
@@ -359,7 +385,7 @@ namespace Live2D.Cubism.Rendering
             };
         }
 
-        public bool EnableFrameworkUpdate { get; set; } = false;
+        public bool EnableFrameworkUpdate { get; set; } = true;
         /// <summary>When &gt;= 0, every drawable uses this Core color-blend id (demo / tests).</summary>
         public int ForceColorBlend { get; set; } = -1;
         /// <summary>When &gt;= 0, every drawable uses this Core alpha-blend id (demo / tests).</summary>
@@ -487,8 +513,20 @@ namespace Live2D.Cubism.Rendering
 
         public override void _ExitTree()
         {
+            _initialized = false;
             Model?.Dispose();
             Model = null;
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                _initialized = false;
+                Model?.Dispose();
+                Model = null;
+            }
+            base.Dispose(disposing);
         }
     }
 }

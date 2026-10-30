@@ -43,16 +43,18 @@ namespace Live2D.Cubism.Core
         public bool IsValid => UnmanagedModel != null && UnmanagedModel.IsValid;
 
         private bool _isOverriddenParameterRepeat = true;
+        private bool _ownsMoc;
 
         public bool GetOverrideFlagForModelParameterRepeat() => _isOverriddenParameterRepeat;
         public void SetOverrideFlagForModelParameterRepeat(bool v) => _isOverriddenParameterRepeat = v;
 
-        public static CubismModel InstantiateFrom(CubismMoc moc)
+        public static CubismModel InstantiateFrom(CubismMoc moc, bool ownsMoc = true)
         {
             if (moc == null || !moc.IsValid) return null;
 
             var model = new CubismModel();
             model.Moc = moc;
+            model._ownsMoc = ownsMoc;
             model.Name = moc.Name ?? "CubismModel";
 
             var unmanaged = moc.AcquireUnmanagedModel();
@@ -205,6 +207,12 @@ namespace Live2D.Cubism.Core
         {
             UnmanagedModel?.Dispose();
             UnmanagedModel = null;
+
+            if (_ownsMoc)
+            {
+                Moc?.Dispose();
+            }
+            Moc = null;
         }
     }
 }

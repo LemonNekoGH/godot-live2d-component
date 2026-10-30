@@ -266,11 +266,14 @@ namespace Live2D.Cubism.Framework.Json
             if (moc == null) return null;
 
             moc.Name = Path.GetFileNameWithoutExtension(FileReferences?.Moc ?? "Model");
-            var model = CubismModel.InstantiateFrom(moc);
-            if (model != null)
+            var model = CubismModel.InstantiateFrom(moc, ownsMoc: true);
+            if (model == null)
             {
-                model.Name = moc.Name;
+                moc.Dispose();
+                return null;
             }
+
+            model.Name = moc.Name;
             return model;
         }
     }
