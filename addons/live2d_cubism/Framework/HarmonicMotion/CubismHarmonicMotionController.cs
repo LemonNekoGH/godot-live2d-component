@@ -40,6 +40,7 @@ namespace Live2D.Cubism.Framework.HarmonicMotion
     /// </summary>
     public class CubismHarmonicMotionController
     {
+        public bool IsEnabled { get; set; } = true;
         public CubismParameterBlendMode BlendMode { get; set; } = CubismParameterBlendMode.Additive;
         public int ChannelCount { get; set; } = 1;
 
@@ -66,7 +67,7 @@ namespace Live2D.Cubism.Framework.HarmonicMotion
 
         public void Update(float deltaTime)
         {
-            if (_parameters == null || HarmonicParameters == null) return;
+            if (!IsEnabled || _parameters == null || HarmonicParameters == null) return;
 
             _totalTime += deltaTime;
 

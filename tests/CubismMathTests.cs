@@ -11,6 +11,7 @@ using System;
 using Live2D.Cubism.Core;
 using Live2D.Cubism.Framework;
 using Live2D.Cubism.Framework.Expression;
+using Live2D.Cubism.Framework.HarmonicMotion;
 using Live2D.Cubism.Framework.Motion;
 using Live2D.Cubism.Framework.Raycasting;
 using Live2D.Cubism.Framework.Physics;
@@ -50,6 +51,7 @@ namespace Live2D.Cubism.Tests
             allPassed &= TestExpressionCrossFadeAndNameLookup();
             allPassed &= TestRaycasterPointInMesh();
             allPassed &= TestSystemTextJsonAndVirtualPaths();
+            allPassed &= TestHarmonicMotionBreath();
 
             if (allPassed)
                 GD.Print("[TESTS] All golden-value math tests PASSED");
@@ -885,6 +887,50 @@ namespace Live2D.Cubism.Tests
 
             GD.Print("  PASS System.Text.Json & res:// virtual path resolution");
             return true;
+        }
+
+        static bool TestHarmonicMotionBreath()
+        {
+            GD.Print("[TEST] CubismHarmonicMotionController Breath Cycle");
+            var breath = new CubismParameter
+            {
+                Id = "ParamBreath",
+                DefaultValue = 0f,
+                MinimumValue = 0f,
+                MaximumValue = 1f,
+                Value = 0f
+            };
+
+            var ctrl = new CubismHarmonicMotionController
+            {
+                BlendMode = CubismParameterBlendMode.Override,
+                HarmonicParameters = new[]
+                {
+                    new CubismHarmonicMotionParameter
+                    {
+                        ParameterId = "ParamBreath",
+                        Channel = 0,
+                        Direction = CubismHarmonicMotionDirection.Centric,
+                        NormalizedMinimum = 0f,
+                        NormalizedMaximum = 1f,
+                        NormalizedDefault = 0.5f,
+                        Duration = 4.0f
+                    }
+                }
+            };
+            ctrl.SetParameters(new[] { breath });
+
+            // Quarter period (t = 1.0s of 4.0s) -> sin(pi/2) = 1.0 -> NormalizedMaximum (1.0)
+            ctrl.Update(1.0f);
+            bool ok = AssertClose(breath.Value, 1.0f, "HarmonicMotion quarter period peak");
+
+            // Disabled controller should not modify parameter
+            ctrl.IsEnabled = false;
+            breath.Value = 0.25f;
+            ctrl.Update(1.0f);
+            ok &= AssertClose(breath.Value, 0.25f, "HarmonicMotion disabled no-op");
+
+            return ok;
         }
     }
 }

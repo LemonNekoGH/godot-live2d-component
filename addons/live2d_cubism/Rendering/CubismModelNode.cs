@@ -259,9 +259,25 @@ namespace Live2D.Cubism.Rendering
             if (physics3 != null)
                 InitializePhysics(physics3);
 
-            // Harmonic motion
+            // Harmonic motion (configure default ParamBreath cycle when present on model)
             HarmonicMotionController = new CubismHarmonicMotionController();
             HarmonicMotionController.SetParameters(Model.Parameters);
+            if (Model.FindParameter("ParamBreath") != null)
+            {
+                HarmonicMotionController.HarmonicParameters = new[]
+                {
+                    new CubismHarmonicMotionParameter
+                    {
+                        ParameterId = "ParamBreath",
+                        Channel = 0,
+                        Direction = CubismHarmonicMotionDirection.Centric,
+                        NormalizedMinimum = 0f,
+                        NormalizedMaximum = 1f,
+                        NormalizedDefault = 0.5f,
+                        Duration = 3.2345f
+                    }
+                };
+            }
 
             // User data
             UserDataController = new CubismUserDataController();
@@ -548,6 +564,16 @@ namespace Live2D.Cubism.Rendering
             _initialized = false;
             Model?.Dispose();
             Model = null;
+        }
+
+        public override void _Notification(int what)
+        {
+            if (what == NotificationPredelete)
+            {
+                _initialized = false;
+                Model?.Dispose();
+                Model = null;
+            }
         }
 
         protected override void Dispose(bool disposing)
