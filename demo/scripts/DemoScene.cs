@@ -527,8 +527,8 @@ namespace Live2D.Cubism.Demo
                 var viewRect = GetViewportRect().Size;
                 if (viewRect.X > 1f && viewRect.Y > 1f)
                 {
-                    var mouse = GetViewport().GetMousePosition();
-                    var center = new Vector2(viewRect.X * 0.5f, viewRect.Y * 0.38f);
+                    var mouse = GetAccurateViewportMouse();
+                    var center = new Vector2(viewRect.X * 0.5f, viewRect.Y * 0.42f);
                     var radius = viewRect.Y * 0.35f;
                     var normX = Mathf.Clamp((mouse.X - center.X) / radius, -1f, 1f);
                     var normY = Mathf.Clamp((center.Y - mouse.Y) / radius, -1f, 1f);
@@ -573,6 +573,32 @@ namespace Live2D.Cubism.Demo
                 System.IO.Directory.CreateDirectory(dir);
             var err = img.SavePng(path);
             GD.Print($"Screenshot saved: {path} ({err})");
+        }
+
+        [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+        private struct CGPoint { public double X; public double Y; }
+        [System.Runtime.InteropServices.DllImport("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")]
+        private static extern System.IntPtr CGEventCreate(System.IntPtr source);
+        [System.Runtime.InteropServices.DllImport("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")]
+        private static extern CGPoint CGEventGetLocation(System.IntPtr evt);
+        [System.Runtime.InteropServices.DllImport("/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation")]
+        private static extern void CFRelease(System.IntPtr cf);
+
+        private Vector2 GetAccurateViewportMouse()
+        {
+            if (OS.GetName() == "macOS")
+            {
+                var evt = CGEventCreate(System.IntPtr.Zero);
+                if (evt != System.IntPtr.Zero)
+                {
+                    var pt = CGEventGetLocation(evt);
+                    CFRelease(evt);
+                    var winPos = DisplayServer.WindowGetPosition();
+                    var scale = DisplayServer.ScreenGetScale();
+                    return new Vector2((float)(pt.X - winPos.X) * scale, (float)((pt.Y - winPos.Y) * scale));
+                }
+            }
+            return GetViewport().GetMousePosition();
         }
 
         private void PlayTapMotion()
