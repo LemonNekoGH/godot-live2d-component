@@ -38,6 +38,14 @@ namespace Live2D.Cubism.Rendering
         private int _drawableIndex;
         private CubismModel _model;
         private ArrayMesh _arrayMesh;
+        private Godot.Collections.Array _meshArrays;
+        private Vector2[] _cachedPositions = System.Array.Empty<Vector2>();
+        private Vector2[] _cachedUvs = System.Array.Empty<Vector2>();
+        private int[] _cachedIndices = System.Array.Empty<int>();
+        private Color[] _cachedMaskColors = System.Array.Empty<Color>();
+        private float _cachedMaskOpacity = -1f;
+        private uint _lastMeshUpdateVersion;
+        private bool _hasValidMesh;
         private ShaderMaterial _material;
         private Texture2D _texture;
         private float _modelOpacity = 1f;
@@ -47,6 +55,10 @@ namespace Live2D.Cubism.Rendering
         private BackBufferCopy _backBufferCopy;
         public int ColorBlendOverride { get; set; } = -1;
         public int AlphaBlendOverride { get; set; } = -1;
+
+        public Vector2[] ScaledPositions => _cachedPositions;
+        public ArrayMesh SharedMesh => _arrayMesh;
+        public bool GeometryChangedThisUpdate { get; private set; }
 
         private static Shader _normalShader;
         private static Shader _additiveShader;
@@ -371,8 +383,16 @@ void fragment() {
             TextureRepeat = TextureRepeatEnum.Enabled;
             Texture = _texture;
 
+            // Cache static UVs and triangle indices once at initialization
+            _cachedUvs = _model.GetDrawableVertexUvs(_drawableIndex) ?? System.Array.Empty<Vector2>();
+            _cachedIndices = _model.GetDrawableIndices(_drawableIndex) ?? System.Array.Empty<int>();
+
+            _meshArrays = new Godot.Collections.Array();
+            _meshArrays.Resize((int)Mesh.ArrayType.Max);
+
             ApplyMaterial(masked: false);
-            RebuildMesh();
+            SelfModulate = new Color(1f, 1f, 1f, drawable.Opacity);
+            EnsureMeshUpdated(force: true);
         }
 
         private void ApplyMaterial(bool masked)
@@ -478,81 +498,102 @@ void fragment() {
                 _material.SetShaderParameter("cubism_alpha_blend", alphaBlend);
             }
 
-            RebuildMesh();
+            // Apply drawable opacity via SelfModulate so opacity changes do not require rebuilding ArrayMesh
+            SelfModulate = new Color(1f, 1f, 1f, drawable.Opacity);
+
+            if (!EnsureMeshUpdated())
+            {
+                Visible = false;
+            }
         }
 
         /// <summary>
-        /// Rebuilds the mesh used when this drawable is a clipping-mask source.
-        /// Same geometry as the main mesh; the caller assigns the mask-write shader.
+        /// Updates the drawable's vertex positions and <see cref="ArrayMesh"/> only when Core reports
+        /// <see cref="CubismCoreDll.VertexPositionsDidChange"/> (or on initial build / forced rebuild).
         /// </summary>
-        public void FillMaskArrays(out Vector2[] positions, out Vector2[] uvs, out int[] indices, out Color[] colors)
+        public bool EnsureMeshUpdated(bool force = false)
         {
-            BuildMeshArrays(out positions, out uvs, out indices, out colors);
-        }
+            if (_model == null || !_model.IsValid) return false;
 
-        private void RebuildMesh()
-        {
-            if (!BuildMeshArrays(out var packedPos, out var packedUv, out var packedIdx, out var packedCol))
+            if (!force && _hasValidMesh && _lastMeshUpdateVersion == _model.UpdateVersion)
+                return true;
+
+            _lastMeshUpdateVersion = _model.UpdateVersion;
+
+            var drawable = _model.Drawables[_drawableIndex];
+            bool positionsChanged = force || !_hasValidMesh ||
+                ((drawable.DynamicFlags & CubismCoreDll.VertexPositionsDidChange) != 0);
+
+            if (!positionsChanged)
             {
-                Visible = false;
-                return;
+                GeometryChangedThisUpdate = false;
+                return _hasValidMesh;
             }
 
-            if (_arrayMesh == null)
-                _arrayMesh = new ArrayMesh();
-            else
-                _arrayMesh.ClearSurfaces();
-
-            var arrays = new Godot.Collections.Array();
-            arrays.Resize((int)Mesh.ArrayType.Max);
-            arrays[(int)Mesh.ArrayType.Vertex] = packedPos;
-            arrays[(int)Mesh.ArrayType.TexUV] = packedUv;
-            arrays[(int)Mesh.ArrayType.Color] = packedCol;
-            arrays[(int)Mesh.ArrayType.Index] = packedIdx;
-
-            _arrayMesh.AddSurfaceFromArrays(Mesh.PrimitiveType.Triangles, arrays);
-            Mesh = _arrayMesh;
-        }
-
-        private bool BuildMeshArrays(
-            out Vector2[] packedPos,
-            out Vector2[] packedUv,
-            out int[] packedIdx,
-            out Color[] packedCol)
-        {
-            packedPos = System.Array.Empty<Vector2>();
-            packedUv = System.Array.Empty<Vector2>();
-            packedIdx = System.Array.Empty<int>();
-            packedCol = System.Array.Empty<Color>();
-
-            var positions = _model.GetDrawableVertexPositions(_drawableIndex);
-            var uvs = _model.GetDrawableVertexUvs(_drawableIndex);
-            var indices = _model.GetDrawableIndices(_drawableIndex);
-
-            if (positions == null || positions.Length == 0 ||
-                indices == null || indices.Length < 3)
+            if (_cachedIndices == null || _cachedIndices.Length < 3)
             {
+                _hasValidMesh = false;
+                GeometryChangedThisUpdate = false;
                 return false;
             }
 
-            var drawable = _model.Drawables[_drawableIndex];
             var ppu = _model.PixelsPerUnit;
             var scale = ppu > 0 ? ppu : 1f;
-            var opacity = drawable.Opacity;
-
-            packedPos = positions;
-            System.Array.Resize(ref uvs, positions.Length);
-            packedUv = uvs;
-            packedCol = new Color[positions.Length];
-            for (int i = 0; i < positions.Length; i++)
+            var count = _model.FillDrawableVertexPositions(_drawableIndex, ref _cachedPositions, scale);
+            if (count <= 0)
             {
-                packedPos[i] *= scale;
-                packedCol[i] = new Color(1f, 1f, 1f, opacity);
+                _hasValidMesh = false;
+                GeometryChangedThisUpdate = false;
+                return false;
             }
 
-            packedIdx = indices;
+            if (_cachedUvs.Length != count)
+                System.Array.Resize(ref _cachedUvs, count);
 
+            _arrayMesh ??= new ArrayMesh();
+            if (_arrayMesh.GetSurfaceCount() > 0)
+                _arrayMesh.ClearSurfaces();
+
+            _meshArrays[(int)Mesh.ArrayType.Vertex] = _cachedPositions;
+            _meshArrays[(int)Mesh.ArrayType.TexUV] = _cachedUvs;
+            _meshArrays[(int)Mesh.ArrayType.Index] = _cachedIndices;
+
+            _arrayMesh.AddSurfaceFromArrays(Mesh.PrimitiveType.Triangles, _meshArrays);
+            Mesh = _arrayMesh;
+            _hasValidMesh = true;
+            GeometryChangedThisUpdate = true;
             return true;
+        }
+
+        /// <summary>
+        /// Returns cached mesh arrays for mask rendering.
+        /// </summary>
+        public void FillMaskArrays(out Vector2[] positions, out Vector2[] uvs, out int[] indices, out Color[] colors)
+        {
+            if (!EnsureMeshUpdated())
+            {
+                positions = System.Array.Empty<Vector2>();
+                uvs = System.Array.Empty<Vector2>();
+                indices = System.Array.Empty<int>();
+                colors = System.Array.Empty<Color>();
+                return;
+            }
+
+            positions = _cachedPositions;
+            uvs = _cachedUvs;
+            indices = _cachedIndices;
+
+            var opacity = _model.Drawables[_drawableIndex].Opacity;
+            if (_cachedMaskColors.Length != _cachedPositions.Length || !Mathf.IsEqualApprox(_cachedMaskOpacity, opacity))
+            {
+                if (_cachedMaskColors.Length != _cachedPositions.Length)
+                    _cachedMaskColors = new Color[_cachedPositions.Length];
+                var col = new Color(1f, 1f, 1f, opacity);
+                for (int i = 0; i < _cachedMaskColors.Length; i++)
+                    _cachedMaskColors[i] = col;
+                _cachedMaskOpacity = opacity;
+            }
+            colors = _cachedMaskColors;
         }
     }
 }

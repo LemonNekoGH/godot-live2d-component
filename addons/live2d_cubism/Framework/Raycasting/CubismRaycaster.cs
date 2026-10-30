@@ -5,8 +5,10 @@
  * that can be found at https://www.live2d.com/eula/live2d-open-software-license-agreement_en.html.
  */
 
+using System;
 using System.Collections.Generic;
 using Live2D.Cubism.Core;
+using Live2D.Cubism.Framework.Json;
 using Godot;
 
 namespace Live2D.Cubism.Framework.Raycasting
@@ -17,6 +19,7 @@ namespace Live2D.Cubism.Framework.Raycasting
     public struct CubismRaycastHit
     {
         public CubismDrawable Drawable;
+        public string HitAreaName;
         public float Distance;
         public Vector2 LocalPosition;
     }
@@ -27,55 +30,106 @@ namespace Live2D.Cubism.Framework.Raycasting
     /// </summary>
     public class CubismRaycaster
     {
+        private struct HitTarget
+        {
+            public int DrawableIndex;
+            public string HitAreaName;
+            public int[] Indices;
+        }
+
         private CubismModel _model;
-        private HashSet<int> _hitDrawableIndices = new();
+        private readonly List<HitTarget> _hitTargets = new();
+        private Vector2[] _positionsBuffer = Array.Empty<Vector2>();
 
         public void Initialize(CubismModel model, string[] hitDrawableIds)
         {
             _model = model;
-            _hitDrawableIndices.Clear();
+            _hitTargets.Clear();
 
-            if (hitDrawableIds == null) return;
+            if (model == null || hitDrawableIds == null) return;
             foreach (var id in hitDrawableIds)
             {
-                for (int i = 0; i < model.Drawables.Length; i++)
+                AddTarget(id, id);
+            }
+        }
+
+        public void Initialize(CubismModel model, CubismModel3Json.HitAreaData[] hitAreas)
+        {
+            _model = model;
+            _hitTargets.Clear();
+
+            if (model == null || hitAreas == null) return;
+            foreach (var area in hitAreas)
+            {
+                if (area == null || string.IsNullOrEmpty(area.Id)) continue;
+                var name = !string.IsNullOrEmpty(area.Name) ? area.Name : area.Id;
+                AddTarget(area.Id, name);
+            }
+        }
+
+        private void AddTarget(string drawableId, string hitAreaName)
+        {
+            for (int i = 0; i < _model.Drawables.Length; i++)
+            {
+                if (_model.Drawables[i].Id == drawableId)
                 {
-                    if (model.Drawables[i].Id == id)
+                    _hitTargets.Add(new HitTarget
                     {
-                        _hitDrawableIndices.Add(i);
-                        break;
-                    }
+                        DrawableIndex = i,
+                        HitAreaName = hitAreaName,
+                        Indices = _model.GetDrawableIndices(i) ?? Array.Empty<int>()
+                    });
+                    break;
                 }
             }
         }
 
         /// <summary>
-        /// Tests a point against all hit-area drawables.
-        /// Point should be in model-local space.
+        /// Tests a point in <see cref="Rendering.CubismModelNode"/> local pixel space
+        /// (the same coordinate space as rendered drawable meshes, i.e. <c>node.ToLocal(globalPoint)</c>).
         /// </summary>
-        public CubismRaycastHit[] Raycast(Vector2 point, int maxResults = 4)
+        public CubismRaycastHit[] Raycast(Vector2 localPoint, int maxResults = 4)
         {
-            if (_model == null) return System.Array.Empty<CubismRaycastHit>();
+            if (_model == null || !_model.IsValid) return Array.Empty<CubismRaycastHit>();
 
+            var scale = _model.PixelsPerUnit > 0 ? _model.PixelsPerUnit : 1f;
+            var unitPoint = localPoint / scale;
+            return RaycastInternal(unitPoint, localPoint, maxResults);
+        }
+
+        /// <summary>
+        /// Tests a point already in Cubism unit space (Godot Y-down, unscaled by PixelsPerUnit).
+        /// </summary>
+        public CubismRaycastHit[] RaycastUnit(Vector2 unitPoint, int maxResults = 4)
+        {
+            if (_model == null || !_model.IsValid) return Array.Empty<CubismRaycastHit>();
+
+            var scale = _model.PixelsPerUnit > 0 ? _model.PixelsPerUnit : 1f;
+            return RaycastInternal(unitPoint, unitPoint * scale, maxResults);
+        }
+
+        private CubismRaycastHit[] RaycastInternal(Vector2 unitPoint, Vector2 localPoint, int maxResults)
+        {
             var results = new List<CubismRaycastHit>();
 
-            foreach (var idx in _hitDrawableIndices)
+            foreach (var target in _hitTargets)
             {
                 if (results.Count >= maxResults) break;
 
-                var drawable = _model.Drawables[idx];
+                var drawable = _model.Drawables[target.DrawableIndex];
                 if (!drawable.IsVisible) continue;
 
-                var positions = _model.GetDrawableVertexPositions(idx);
-                var indices = _model.GetDrawableIndices(idx);
+                var count = _model.FillDrawableVertexPositions(target.DrawableIndex, ref _positionsBuffer, 1f);
+                if (count <= 0 || target.Indices.Length < 3) continue;
 
-                if (PointInMesh(point, positions, indices))
+                if (PointInMesh(unitPoint, _positionsBuffer, target.Indices))
                 {
                     results.Add(new CubismRaycastHit
                     {
                         Drawable = drawable,
+                        HitAreaName = target.HitAreaName,
                         Distance = 0f,
-                        LocalPosition = point
+                        LocalPosition = localPoint
                     });
                 }
             }
@@ -83,7 +137,7 @@ namespace Live2D.Cubism.Framework.Raycasting
             return results.ToArray();
         }
 
-        private static bool PointInMesh(Vector2 point, Vector2[] vertices, int[] indices)
+        public static bool PointInMesh(Vector2 point, Vector2[] vertices, int[] indices)
         {
             for (int i = 0; i + 2 < indices.Length; i += 3)
             {

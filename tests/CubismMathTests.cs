@@ -10,7 +10,9 @@
 using System;
 using Live2D.Cubism.Core;
 using Live2D.Cubism.Framework;
+using Live2D.Cubism.Framework.Expression;
 using Live2D.Cubism.Framework.Motion;
+using Live2D.Cubism.Framework.Raycasting;
 using Live2D.Cubism.Framework.Physics;
 using Live2D.Cubism.Framework.Json;
 using Live2D.Cubism.Rendering;
@@ -45,6 +47,8 @@ namespace Live2D.Cubism.Tests
             allPassed &= TestNativeBezierAndFade();
             allPassed &= TestHiyoriMotionCurvesVsNative();
             allPassed &= TestUnityLoopWrapAndPartOpacity();
+            allPassed &= TestExpressionCrossFadeAndNameLookup();
+            allPassed &= TestRaycasterPointInMesh();
 
             if (allPassed)
                 GD.Print("[TESTS] All golden-value math tests PASSED");
@@ -724,6 +728,96 @@ namespace Live2D.Cubism.Tests
             float p012v = Lerp(p01v, p12v, t);
             float p123v = Lerp(p12v, p23v, t);
             return Lerp(p012v, p123v, t);
+        }
+
+        static bool TestExpressionCrossFadeAndNameLookup()
+        {
+            GD.Print("[TEST] CubismExpressionController CrossFade & Name Lookup");
+            bool ok = true;
+
+            var param = new CubismParameter
+            {
+                Id = "ParamSmile",
+                DefaultValue = 0f,
+                MinimumValue = 0f,
+                MaximumValue = 1f,
+                Value = 0f
+            };
+            var parameters = new[] { param };
+
+            var expA = new CubismExp3Json
+            {
+                Name = "SmileA",
+                FadeInTime = 0.5f,
+                FadeOutTime = 0.5f,
+                Parameters = new[]
+                {
+                    new CubismExp3Json.SerializableExpressionParameter
+                    {
+                        Id = "ParamSmile", Value = 0.4f, Blend = CubismExp3Json.BlendModeAdditive
+                    }
+                }
+            };
+            var expB = new CubismExp3Json
+            {
+                Name = "SmileB",
+                FadeInTime = 0.5f,
+                FadeOutTime = 0.5f,
+                Parameters = new[]
+                {
+                    new CubismExp3Json.SerializableExpressionParameter
+                    {
+                        Id = "ParamSmile", Value = 0.8f, Blend = CubismExp3Json.BlendModeAdditive
+                    }
+                }
+            };
+
+            var ctrl = new CubismExpressionController { Expressions = new[] { expA, expB } };
+            ctrl.SetParameters(parameters);
+
+            // Start SmileA and advance 0.5s so Weight reaches 1.0
+            ctrl.StartExpression(0);
+            param.Value = 0f;
+            ctrl.Update(0.5f);
+            ok &= AssertClose(param.Value, 0.4f, "Expression A full weight");
+
+            // Switch to SmileB by name; SmileA should fade out over 0.5s instead of staying at 1.0
+            bool found = ctrl.StartExpression("SmileB");
+            if (!found || ctrl.CurrentExpressionIndex != 1)
+            {
+                GD.PrintErr("  FAIL StartExpression(SmileB) did not resolve index 1");
+                return false;
+            }
+
+            // After 0.5s, SmileA has faded out to 0 and been removed, only SmileB (0.8) remains
+            param.Value = 0f;
+            ctrl.Update(0.5f);
+            ok &= AssertClose(param.Value, 0.8f, "Expression B replaces faded-out A");
+
+            return ok;
+        }
+
+        static bool TestRaycasterPointInMesh()
+        {
+            GD.Print("[TEST] CubismRaycaster.PointInMesh");
+            var verts = new[]
+            {
+                new Vector2(-0.5f, -0.5f),
+                new Vector2(0.5f, -0.5f),
+                new Vector2(0.5f, 0.5f),
+                new Vector2(-0.5f, 0.5f),
+            };
+            var indices = new[] { 0, 2, 1, 0, 3, 2 };
+
+            bool inside = CubismRaycaster.PointInMesh(new Vector2(0.1f, -0.1f), verts, indices);
+            bool outside = CubismRaycaster.PointInMesh(new Vector2(1.2f, 0.0f), verts, indices);
+            if (!inside || outside)
+            {
+                GD.PrintErr($"  FAIL PointInMesh: inside={inside}, outside={outside}");
+                return false;
+            }
+            GD.Print("  PASS PointInMesh inside=true, outside=false");
+            return true;
         }
     }
 }

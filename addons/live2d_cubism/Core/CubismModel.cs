@@ -40,6 +40,11 @@ namespace Live2D.Cubism.Core
         public Vector2 CanvasOriginInPixels { get; private set; }
         public float PixelsPerUnit { get; private set; } = 1f;
 
+        /// <summary>
+        /// Incremented each time <see cref="UpdateModel"/> completes.
+        /// </summary>
+        public uint UpdateVersion { get; private set; }
+
         public bool IsValid => UnmanagedModel != null && UnmanagedModel.IsValid;
 
         private bool _isOverriddenParameterRepeat = true;
@@ -157,6 +162,15 @@ namespace Live2D.Cubism.Core
 
             // Reset dynamic flags for next frame
             um.ResetDynamicFlags();
+            UpdateVersion++;
+        }
+
+        /// <summary>
+        /// Fills vertex positions for a drawable into a reusable array (converted to Godot Y-down coordinates and scaled).
+        /// </summary>
+        public int FillDrawableVertexPositions(int drawableIndex, ref Vector2[] destination, float scale = 1f)
+        {
+            return UnmanagedModel.Drawables.FillVertexPositions(drawableIndex, ref destination, scale);
         }
 
         /// <summary>

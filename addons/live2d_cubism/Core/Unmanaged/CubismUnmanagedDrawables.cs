@@ -59,22 +59,35 @@ namespace Live2D.Cubism.Core.Unmanaged
             return result;
         }
 
-        private unsafe int GetVertexCount(int index) => CubismCoreDll.GetDrawableVertexCounts(_modelPtr)[index];
+        public unsafe int GetVertexCount(int index) => CubismCoreDll.GetDrawableVertexCounts(_modelPtr)[index];
 
-        public unsafe Vector2[] GetVertexPositions(int index)
+        public unsafe int FillVertexPositions(int index, ref Vector2[] destination, float scale = 1f)
         {
             var count = GetVertexCount(index);
-            if (count <= 0) return Array.Empty<Vector2>();
+            if (count <= 0)
+            {
+                destination = Array.Empty<Vector2>();
+                return 0;
+            }
 
-            var positions = CubismCoreDll.GetDrawableVertexPositions(_modelPtr);
-            var result = new Vector2[count];
+            if (destination == null || destination.Length != count)
+                destination = new Vector2[count];
+
+            var positions = CubismCoreDll.GetDrawableVertexPositions(_modelPtr)[index];
             for (int i = 0; i < count; i++)
             {
                 // Unity: Y-up. Godot 2D: Y-down.
                 // Cubism Core outputs in local model space (Y-up like Unity).
                 // We negate Y to convert to Godot's 2D coordinate system.
-                result[i] = new Vector2(positions[index][i * 2], -positions[index][i * 2 + 1]);
+                destination[i] = new Vector2(positions[i * 2] * scale, -positions[i * 2 + 1] * scale);
             }
+            return count;
+        }
+
+        public unsafe Vector2[] GetVertexPositions(int index)
+        {
+            Vector2[] result = null;
+            FillVertexPositions(index, ref result, 1f);
             return result;
         }
 

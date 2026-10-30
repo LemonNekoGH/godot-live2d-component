@@ -204,9 +204,18 @@ namespace Live2D.Cubism.Rendering
                 var expJsons = new CubismExp3Json[ModelJson.FileReferences.Expressions.Length];
                 for (int i = 0; i < ModelJson.FileReferences.Expressions.Length; i++)
                 {
-                    var expPath = ModelJson.ResolvePath(ModelJson.FileReferences.Expressions[i].File);
+                    var expRef = ModelJson.FileReferences.Expressions[i];
+                    var expPath = ModelJson.ResolvePath(expRef.File);
                     if (expPath != null && File.Exists(expPath))
+                    {
                         expJsons[i] = CubismExp3Json.LoadAtPath(expPath);
+                        if (expJsons[i] != null && string.IsNullOrEmpty(expJsons[i].Name))
+                        {
+                            expJsons[i].Name = !string.IsNullOrEmpty(expRef.Name)
+                                ? expRef.Name
+                                : Path.GetFileNameWithoutExtension(expRef.File);
+                        }
+                    }
                 }
                 ExpressionController.Expressions = expJsons;
             }
@@ -264,10 +273,7 @@ namespace Live2D.Cubism.Rendering
             Raycaster = new CubismRaycaster();
             if (ModelJson.HitAreas != null)
             {
-                var hitIds = new string[ModelJson.HitAreas.Length];
-                for (int i = 0; i < ModelJson.HitAreas.Length; i++)
-                    hitIds[i] = ModelJson.HitAreas[i].Id;
-                Raycaster.Initialize(Model, hitIds);
+                Raycaster.Initialize(Model, ModelJson.HitAreas);
             }
 
             // Parameter store: save the moc defaults so Multiply blink/mouth
@@ -494,6 +500,14 @@ namespace Live2D.Cubism.Rendering
         }
 
         /// <summary>
+        /// Starts an expression by name.
+        /// </summary>
+        public bool StartExpression(string expressionName)
+        {
+            return ExpressionController != null && ExpressionController.StartExpression(expressionName);
+        }
+
+        /// <summary>
         /// Sets the look-at target position.
         /// </summary>
         public void SetLookTarget(Vector2 position)
@@ -509,6 +523,24 @@ namespace Live2D.Cubism.Rendering
         {
             if (MouthController != null)
                 MouthController.MouthOpening = value;
+        }
+
+        /// <summary>
+        /// Hit-tests a point in this node's local coordinate space against the model's hit areas.
+        /// </summary>
+        public CubismRaycastHit[] RaycastLocal(Vector2 localPoint, int maxResults = 4)
+        {
+            return Raycaster != null
+                ? Raycaster.Raycast(localPoint, maxResults)
+                : Array.Empty<CubismRaycastHit>();
+        }
+
+        /// <summary>
+        /// Hit-tests a point in global/viewport canvas coordinates against the model's hit areas.
+        /// </summary>
+        public CubismRaycastHit[] RaycastGlobal(Vector2 globalPoint, int maxResults = 4)
+        {
+            return RaycastLocal(ToLocal(globalPoint), maxResults);
         }
 
         public override void _ExitTree()

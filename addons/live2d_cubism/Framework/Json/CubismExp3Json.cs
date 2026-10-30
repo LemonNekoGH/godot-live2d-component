@@ -15,6 +15,7 @@ namespace Live2D.Cubism.Framework.Json
     /// </summary>
     public sealed class CubismExp3Json
     {
+        [JsonIgnore] public string Name { get; set; }
         [JsonProperty("Type")] public string Type { get; set; }
         [JsonProperty("FadeInTime")] public float FadeInTime { get; set; } = 1.0f;
         [JsonProperty("FadeOutTime")] public float FadeOutTime { get; set; } = 1.0f;

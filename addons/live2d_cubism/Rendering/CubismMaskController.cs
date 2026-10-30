@@ -37,6 +37,8 @@ namespace Live2D.Cubism.Rendering
             public MeshInstance2D[] MaskMeshes;
             public Vector2 Center;
             public float Scale = 1f;
+            public bool HasBounds;
+            public bool BoundsValid;
         }
 
         public void Initialize(CubismModel model, CubismDrawableRenderer[] renderers, Texture2D[] textures)
@@ -130,29 +132,57 @@ namespace Live2D.Cubism.Rendering
 
             foreach (var ctx in _contexts)
             {
-                if (!ComputeBounds(ctx, out var center, out var scale))
+                bool anyGeometryChanged = !ctx.HasBounds;
+
+                for (int m = 0; m < ctx.MaskIndices.Length; m++)
+                {
+                    int maskIndex = ctx.MaskIndices[m];
+                    var mesh = ctx.MaskMeshes[m];
+                    if (mesh == null || maskIndex < 0 || maskIndex >= _renderers.Length) continue;
+
+                    var src = _renderers[maskIndex];
+                    if (src == null || !src.EnsureMeshUpdated())
+                    {
+                        mesh.Visible = false;
+                        continue;
+                    }
+
+                    if (src.GeometryChangedThisUpdate)
+                        anyGeometryChanged = true;
+
+                    var maskDrawable = _model.Drawables[maskIndex];
+                    mesh.Mesh = src.SharedMesh;
+                    mesh.SelfModulate = new Color(1f, 1f, 1f, maskDrawable.Opacity);
+                    mesh.Visible = src.SharedMesh != null && maskDrawable.Opacity > 0.001f;
+                }
+
+                if (anyGeometryChanged)
+                {
+                    ctx.BoundsValid = ComputeBounds(ctx, out var center, out var scale);
+                    ctx.HasBounds = true;
+                    if (ctx.BoundsValid)
+                    {
+                        ctx.Center = center;
+                        ctx.Scale = scale;
+                        ctx.Camera.Position = center;
+                        ctx.Camera.Zoom = new Vector2(MaskSize / scale, MaskSize / scale);
+                    }
+                }
+
+                if (!ctx.BoundsValid)
                 {
                     foreach (var idx in ctx.ClippedIndices)
                         _renderers[idx]?.SetMaskTexture(null, Vector2.Zero, 0f, false);
                     continue;
                 }
 
-                ctx.Center = center;
-                ctx.Scale = scale;
-                ctx.Camera.Position = center;
-                ctx.Camera.Zoom = new Vector2(MaskSize / scale, MaskSize / scale);
-
-                for (int m = 0; m < ctx.MaskIndices.Length; m++)
-                    RebuildMaskMesh(ctx.MaskMeshes[m], ctx.MaskIndices[m]);
-
                 var maskTex = ctx.Viewport.GetTexture();
-                bool invert = false;
                 foreach (var idx in ctx.ClippedIndices)
                 {
                     var renderer = _renderers[idx];
                     if (renderer == null) continue;
-                    invert = _model.Drawables[idx].IsInvertedMask;
-                    renderer.SetMaskTexture(maskTex, center, scale, invert);
+                    var invert = _model.Drawables[idx].IsInvertedMask;
+                    renderer.SetMaskTexture(maskTex, ctx.Center, ctx.Scale, invert);
                 }
             }
         }
@@ -162,20 +192,21 @@ namespace Live2D.Cubism.Rendering
             center = Vector2.Zero;
             scale = 1f;
 
-            var ppu = _model.PixelsPerUnit > 0 ? _model.PixelsPerUnit : 1f;
             float minX = float.MaxValue, minY = float.MaxValue;
             float maxX = float.MinValue, maxY = float.MinValue;
             bool any = false;
 
             foreach (var maskIndex in ctx.MaskIndices)
             {
-                if (maskIndex < 0 || maskIndex >= _model.Drawables.Length) continue;
-                var verts = _model.GetDrawableVertexPositions(maskIndex);
+                if (maskIndex < 0 || maskIndex >= _renderers.Length) continue;
+                var src = _renderers[maskIndex];
+                if (src == null || !src.EnsureMeshUpdated()) continue;
+                var verts = src.ScaledPositions;
                 if (verts == null || verts.Length == 0) continue;
                 any = true;
                 for (int i = 0; i < verts.Length; i++)
                 {
-                    var p = verts[i] * ppu;
+                    var p = verts[i];
                     if (p.X < minX) minX = p.X;
                     if (p.X > maxX) maxX = p.X;
                     if (p.Y < minY) minY = p.Y;
@@ -192,34 +223,6 @@ namespace Live2D.Cubism.Rendering
             if (scale < 0.0001f) scale = 1f;
             scale *= 1.05f;
             return true;
-        }
-
-        private void RebuildMaskMesh(MeshInstance2D mesh, int drawableIndex)
-        {
-            if (mesh == null || drawableIndex < 0 || drawableIndex >= _renderers.Length) return;
-            var src = _renderers[drawableIndex];
-            if (src == null) return;
-
-            src.FillMaskArrays(out var pos, out var uvs, out var indices, out var colors);
-            if (pos.Length == 0 || indices.Length < 3)
-            {
-                mesh.Visible = false;
-                return;
-            }
-
-            var arrayMesh = mesh.Mesh as ArrayMesh ?? new ArrayMesh();
-            if (arrayMesh.GetSurfaceCount() > 0)
-                arrayMesh.ClearSurfaces();
-
-            var arrays = new Godot.Collections.Array();
-            arrays.Resize((int)Mesh.ArrayType.Max);
-            arrays[(int)Mesh.ArrayType.Vertex] = pos;
-            arrays[(int)Mesh.ArrayType.TexUV] = uvs;
-            arrays[(int)Mesh.ArrayType.Color] = colors;
-            arrays[(int)Mesh.ArrayType.Index] = indices;
-            arrayMesh.AddSurfaceFromArrays(Mesh.PrimitiveType.Triangles, arrays);
-            mesh.Mesh = arrayMesh;
-            mesh.Visible = true;
         }
     }
 }
